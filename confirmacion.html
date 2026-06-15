@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>¡Correo Confirmado! - Gestor de Tareas</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Estilos específicos adicionales para centrar el mensaje perfectamente en pantalla */
+        body.confirmation-body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f4f6f9;
+            margin: 0;
+            font-family: sans-serif;
+        }
+        .confirmation-card {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 450px;
+            width: 90%;
+        }
+        .success-icon {
+            font-size: 50px;
+            color: #28a745;
+            margin-bottom: 20px;
+        }
+        .redirect-text {
+            color: #666;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body class="confirmation-body">
+
+    <div class="confirmation-card">
+        <div class="success-icon">✨ 🔓 ✨</div>
+        <h2 style="margin-top: 0; color: #333;">¡Autenticación Exitosa!</h2>
+        <p style="color: #555; line-height: 1.6; margin-bottom: 25px;">
+            Tu enlace de correo se ha verificado correctamente. Ya tienes acceso completo a tu panel de gestión de tareas.
+        </p>
+        
+        <a href="dashboard.html" class="btn-primary" style="display: inline-block; text-decoration: none; width: auto; padding: 10px 25px;">
+            Ir al Dashboard ahora
+        </a>
+
+        <p class="redirect-text">
+            Serás redirigido automáticamente en <span id="countdown">5</span> segundos...
+        </p>
+    </div>
+
+    <script>
+        // Cuenta atrás para redirigir automáticamente al dashboard
+        let seconds = 5;
+        const countdownEl = document.getElementById('countdown');
+        
+        const interval = setInterval(() => {
+            seconds--;
+            countdownEl.textContent = seconds;
+            if (seconds <= 0) {
+                clearInterval(interval);
+                window.location.href = 'dashboard.html';
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
