@@ -90,11 +90,11 @@ body {
 
 /* Colores según el tipo de mensaje */
 .toast.success {
-    background-color: #28a745; /* Verde */
+    background-color: #28a745;
 }
 
 .toast.error {
-    background-color: #dc3545; /* Rojo */
+    background-color: #dc3545;
 }
 
 /* --- ESTILOS DEL DASHBOARD --- */
@@ -217,7 +217,7 @@ body {
 }
 
 .hidden-file-input {
-    display: none; /* Ocultamos el input feo por defecto del navegador */
+    display: none; /* Oculta el input feo por defecto del navegador */
 }
 
 .btn-secondary {
@@ -254,7 +254,7 @@ body {
     padding: 20px;
 }
 
-/* Estilos de la tarjeta de cada tarea individual (las inyectaremos con JS) */
+/* Estilos de la tarjeta de cada tarea individual */
 .task-item {
     background: white;
     padding: 15px 20px;
@@ -312,7 +312,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5); /* Fondo oscuro semitransparente */
+    background-color: rgba(0, 0, 0, 0.5);
     display: flex;
     justify-content: center;
     align-items: center;

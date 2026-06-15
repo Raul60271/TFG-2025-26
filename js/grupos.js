@@ -284,8 +284,7 @@ function renderCurrentMembersList() {
         li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #f9f9f9; font-size: 13px;';
         
         const isAdmin = member.id === currentGroup.admin_id;
-        
-        // Dibujamos al miembro. Si no es admin, añadimos el botón de expulsar (❌)
+
         li.innerHTML = `
             <span><strong>${member.username}</strong> ${isAdmin ? '<span style="color: gold;" title="Administrador">👑</span>' : `(${member.email})`}</span>
             ${!isAdmin ? `<button class="kick-member-btn" data-id="${member.id}" style="background: none; border: none; color: #dc3545; cursor: pointer; font-size: 16px;" title="Expulsar miembro">❌</button>` : ''}
@@ -294,7 +293,6 @@ function renderCurrentMembersList() {
         currentMembersList.appendChild(li);
     });
 
-    // Añadir eventos a los botones de expulsión
     const kickBtns = currentMembersList.querySelectorAll('.kick-member-btn');
     kickBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -307,7 +305,7 @@ function renderCurrentMembersList() {
 
 // --- AÑADIR MIEMBRO AL GRUPO ---
 addMemberForm.addEventListener('submit', async (e) => {
-    // 1. Evita que la página se reinicie
+    // 1. Evitar que la página se reinicie
     e.preventDefault(); 
     
     const email = memberEmailInput.value.trim();
@@ -315,7 +313,7 @@ addMemberForm.addEventListener('submit', async (e) => {
     saveBtn.disabled = true;
     
     try {
-        // 2. Buscamos al usuario por su email
+        // 2. Busca al usuario por su email
         const { data: targetUser, error: searchErr } = await supabase
             .from('users')
             .select('id')
@@ -325,7 +323,7 @@ addMemberForm.addEventListener('submit', async (e) => {
         if (searchErr || !targetUser) throw new Error('El usuario con ese correo no está registrado.');
         if (targetUser.id === currentGroup.admin_id) throw new Error('Ese usuario ya es el administrador.');
 
-        // 3. Verificamos si ya está en el grupo
+        // 3. Verifica si ya está en el grupo
         const { data: existing } = await supabase
             .from('group_members')
             .select('*')
@@ -335,14 +333,14 @@ addMemberForm.addEventListener('submit', async (e) => {
             
         if (existing) throw new Error('El usuario ya pertenece a este grupo.');
 
-        // 4. Lo insertamos en la base de datos
+        // 4. Inserta en la base de datos
         const { error: insErr } = await supabase
             .from('group_members')
             .insert([{ group_id: currentGroup.id, user_id: targetUser.id }]);
             
         if (insErr) throw insErr;
 
-        // 5. Notificamos, vaciamos el input y actualizamos listas al instante
+        // 5. Notifica, vacia el input y actualiza listas al instante
         showToast('¡Usuario añadido al grupo!', 'success');
         memberEmailInput.value = '';
         
@@ -597,15 +595,15 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
     confirmDeleteGroupBtn.textContent = 'Eliminando...';
 
     try {
-        // 1. Limpieza de Tareas: Eliminamos todas las tareas del grupo
+        // 1. Limpieza de Tareas: Elimina todas las tareas del grupo
         const { error: taskErr } = await supabase.from('group_tasks').delete().eq('group_id', currentGroup.id);
         if (taskErr) throw taskErr;
 
-        // 2. Limpieza de Miembros: Eliminamos las relaciones en la tabla cruzada
+        // 2. Limpieza de Miembros: Elimina las relaciones en la tabla cruzada
         const { error: membersErr } = await supabase.from('group_members').delete().eq('group_id', currentGroup.id);
         if (membersErr) throw membersErr;
 
-        // 3. Borrado de la entidad raíz: Eliminamos el grupo definitivo
+        // 3. Borrado de la entidad raíz: Elimina el grupo definitivamente
         const { error: groupErr } = await supabase.from('groups').delete().eq('id', currentGroup.id);
         if (groupErr) throw groupErr;
 
@@ -640,7 +638,7 @@ confirmKickBtn.addEventListener('click', async () => {
     confirmKickBtn.textContent = 'Expulsando...';
 
     try {
-        // Borramos la relación usuario-grupo en Supabase
+        // Borra la relación usuario-grupo en Supabase
         const { error: kickErr } = await supabase
             .from('group_members')
             .delete()

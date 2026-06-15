@@ -177,7 +177,7 @@ editForm.addEventListener('submit', async (e) => {
     }
 });
 
-// --- 4. CONTROL DEL MODAL DE BORRADO DE CUENTA (ACTUALIZADO) ---
+// --- 4. CONTROL DEL MODAL DE BORRADO DE CUENTA ---
 openDeleteBtn.addEventListener('click', () => {
     deleteModal.classList.remove('hidden');
 });
@@ -196,7 +196,7 @@ confirmDeleteBtn.addEventListener('click', async () => {
 
         if (deleteError) throw new Error('No se pudo eliminar la cuenta del sistema.');
 
-        // Cerramos sesión después del borrado
+        // Cerra sesión después del borrado
         await supabase.auth.signOut();
         window.location.href = 'index.html';
 

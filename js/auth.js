@@ -5,10 +5,10 @@ const toastNotification = document.getElementById('toast-notification');
 
 function showToast(message, type) {
     toastNotification.textContent = message;
-    // Eliminamos clases anteriores y añadimos 'show' y el tipo (success o error)
+    // Elimina clases anteriores y añade 'show' y el tipo (success o error)
     toastNotification.className = `toast show ${type}`;
     
-    // Ocultar automáticamente después de 4.5 segundos
+    // Oculta automáticamente después de 4.5 segundos
     setTimeout(() => {
         toastNotification.classList.remove('show');
     }, 4500);
@@ -45,14 +45,14 @@ registerForm.addEventListener('submit', async (e) => {
     const password = document.getElementById('register-password').value;
     const confirmPassword = document.getElementById('register-confirm-password').value;
 
-    // Comprobamos que las contraseñas coinciden
+    // Comprueba que las contraseñas coinciden
     if (password !== confirmPassword) {
         showToast('Las contraseñas no coinciden. Por favor, escríbelas de nuevo.', 'error');
         return;
     }
 
     try {
-        // A. Registramos al usuario en la Autenticación de Supabase
+        // A. Registra al usuario en la Autenticación de Supabase
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email: email,
             password: password,
@@ -60,7 +60,7 @@ registerForm.addEventListener('submit', async (e) => {
 
         if (authError) throw authError;
 
-        // B. Si se registra bien, guardamos sus datos en TU tabla pública "users"
+        // B. Si se registra bien, guarda los datos en la tabla pública "users"
         if (authData.user) {
             const { error: dbError } = await supabase
                 .from('users')
@@ -77,7 +77,7 @@ registerForm.addEventListener('submit', async (e) => {
             // Mensaje de éxito pulido
             showToast('¡Cuenta creada! Revisa tu bandeja de entrada y verifica tu correo para poder entrar.', 'success');
             
-            // Limpiamos el formulario y volvemos a la pantalla de login
+            // Limpia el formulario y vuelve a la pantalla de login
             registerForm.reset();
             registerSection.classList.add('hidden');
             loginSection.classList.remove('hidden');
@@ -110,7 +110,7 @@ loginForm.addEventListener('submit', async (e) => {
     const password = document.getElementById('login-password').value;
 
     try {
-        // Iniciamos sesión con Supabase
+        // Inicia sesión con Supabase
         const { data, error } = await supabase.auth.signInWithPassword({
             email: email,
             password: password,
@@ -118,7 +118,7 @@ loginForm.addEventListener('submit', async (e) => {
 
         if (error) throw error;
 
-        // Si todo va bien, redirigimos al gestor de tareas
+        // Si todo va bien, redirige al gestor de tareas
         window.location.href = 'dashboard.html';
         
     } catch (error) {

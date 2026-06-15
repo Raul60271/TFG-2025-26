@@ -37,7 +37,7 @@ async function checkAuthAndLoadProfile() {
     }
 
     const userId = session.user.id;
-    // Ahora pedimos también la foto
+    // Pedide también la foto
     const { data: userData, error: userError } = await supabase
         .from('users')
         .select('username, profile_picture_url')
@@ -56,7 +56,7 @@ async function checkAuthAndLoadProfile() {
             userAvatar.classList.remove('hidden');
             avatarPlaceholder.classList.add('hidden');
         } else {
-            // Ponemos la inicial si no hay foto
+            // Pone la inicial si no hay foto
             avatarPlaceholder.textContent = userData.username.charAt(0);
             userAvatar.classList.add('hidden');
             avatarPlaceholder.classList.remove('hidden');
@@ -129,7 +129,7 @@ function renderTasks(tasks) {
         const taskElement = document.createElement('div');
         taskElement.className = `task-item ${task.is_completed ? 'completed' : ''}`;
         
-        // Se añade un input de archivo oculto para la función de sustituir
+        // Añade un input de archivo oculto para la función de sustituir
         taskElement.innerHTML = `
             <div class="task-content">
                 <h4 class="task-title">${task.title}</h4>
@@ -163,7 +163,7 @@ function renderTasks(tasks) {
         const deleteBtn = taskElement.querySelector('.delete-btn');
         deleteBtn.addEventListener('click', () => openDeleteModal(task.id, task.file_url));
 
-        // Evento para SUSTITUIR ARCHIVO
+        // Evento para sustituir archivo
         const replaceInput = taskElement.querySelector('.hidden-replace-input');
         replaceInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
@@ -262,7 +262,7 @@ async function replaceTaskFile(taskId, oldFileUrl, newFile) {
         return;
     }
 
-    // Obtenemos la nueva URL
+    // Obtiene la nueva URL
     const { data: publicUrlData } = supabase.storage
         .from('task_files')
         .getPublicUrl(filePath);
@@ -320,7 +320,7 @@ cancelDeleteBtn.addEventListener('click', () => {
 confirmDeleteBtn.addEventListener('click', async () => {
     if (!taskToDeleteId) return;
 
-    // Usamos nuestra nueva función auxiliar
+    // Usa la nueva función auxiliar
     if (fileToDeleteUrl) {
         await deleteFileFromStorage(fileToDeleteUrl);
     }
