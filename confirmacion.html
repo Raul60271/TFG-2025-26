@@ -46,28 +46,9 @@
             Tu enlace de correo se ha verificado correctamente. Ya tienes acceso completo a tu panel de gestión de tareas.
         </p>
         
-        <a href="dashboard.html" class="btn-primary" style="display: inline-block; text-decoration: none; width: auto; padding: 10px 25px;">
-            Ir al Dashboard ahora
+        <a href="index.html" class="btn-primary" style="display: inline-block; text-decoration: none; width: auto; padding: 10px 25px;">
+            Ir de vuelta al inicio de sesión
         </a>
-
-        <p class="redirect-text">
-            Serás redirigido automáticamente en <span id="countdown">5</span> segundos...
-        </p>
     </div>
-
-    <script>
-        // Cuenta atrás para redirigir automáticamente al dashboard
-        let seconds = 5;
-        const countdownEl = document.getElementById('countdown');
-        
-        const interval = setInterval(() => {
-            seconds--;
-            countdownEl.textContent = seconds;
-            if (seconds <= 0) {
-                clearInterval(interval);
-                window.location.href = 'dashboard.html';
-            }
-        }, 1000);
-    </script>
 </body>
 </html>
