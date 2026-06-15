@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor Personal - Grupos</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard-body">
+
+    <header class="navbar">
+        <div class="logo">Gestor de Tareas</div>
+        <nav class="nav-links">
+            <a href="dashboard.html">Personal</a>
+            <a href="grupos.html" class="active">Grupos</a>
+        </nav>
+        
+        <div class="profile-menu">
+            <div class="profile-trigger" id="profile-trigger" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <div style="width: 35px; height: 35px; position: relative;">
+                    <div id="avatar-placeholder" style="width: 100%; height: 100%; background-color: #007bff; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; text-transform: uppercase;">
+                        ?
+                    </div>
+                    <img id="user-avatar" src="" alt="Avatar" class="avatar hidden" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; position: absolute; top: 0; left: 0;">
+                </div>
+                <span id="user-name">Cargando...</span>
+            </div>
+            <div class="dropdown-content hidden" id="profile-dropdown">
+                <a href="perfil.html">⚙️ Mi Perfil</a>
+                <a href="#" id="logout-btn" class="text-danger">🚪 Cerrar Sesión</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="dashboard-container">
+        
+        <section class="task-form-card" style="height: fit-content;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 10px;">
+                <h3 style="margin: 0;">Mis Grupos</h3>
+                <button id="open-group-modal-btn" class="btn-primary" style="padding: 8px 14px; font-size: 14px; width: auto;">➕ Crear Grupo</button>
+            </div>
+
+            <div id="groups-list" class="task-list">
+                <p class="empty-state">Cargando tus grupos...</p>
+            </div>
+        </section>
+
+        <section class="task-list-section">
+            <div id="group-detail-panel" class="hidden">
+                
+                <div style="border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; flex-wrap: wrap;">
+                        <div>
+                            <h2 id="selected-group-name" style="color: #007bff; margin: 0 0 5px 0;">👥 Nombre del Grupo</h2>
+                            <p id="selected-group-desc" style="color: #666; margin: 0;">Descripción del grupo...</p>
+                        </div>
+                        <div id="admin-group-actions" class="hidden" style="display: flex; gap: 10px;">
+                            <button id="open-edit-group-btn" class="btn-secondary" style="padding: 6px 12px; font-size: 13px;">✏️ Editar Grupo</button>
+                            <button id="open-add-member-btn" class="btn-primary" style="padding: 6px 12px; font-size: 13px; width: auto;">👤 Editar Miembros</button>
+                            <button id="open-delete-group-btn" class="btn-danger" style="padding: 6px 12px; font-size: 13px; width: auto; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️ Eliminar Grupo</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="task-form-card" style="margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                    <h4 style="margin-top: 0; margin-bottom: 15px; color: #333;">Nueva Tarea de Grupo</h4>
+                    <form id="group-task-form">
+                        <div class="form-group">
+                            <input type="text" id="group-task-title" required placeholder="Nombre de la tarea...">
+                        </div>
+                        <div class="form-group">
+                            <textarea id="group-task-desc" placeholder="Descripción (opcional)" rows="2" style="width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; resize: vertical;"></textarea>
+                        </div>
+                        
+                        <div class="form-group" id="assignee-block" style="margin-bottom: 15px;">
+                            <label for="group-task-assignee" style="font-size: 13px; font-weight: bold; color: #555; display: block; margin-bottom: 5px;">Asignar a:</label>
+                            <select id="group-task-assignee" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit;">
+                            </select>
+                        </div>
+
+                        <div class="form-group" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <label class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px;">
+                                📎 Adjuntar archivo (opcional)
+                                <input type="file" id="group-task-file" style="display: none;">
+                            </label>
+                            <span id="group-file-name-preview" style="font-size: 13px; color: #666;">Ningún archivo...</span>
+                        </div>
+
+                        <button type="submit" id="add-group-task-btn" class="btn-primary">Añadir Tarea al Grupo</button>
+                    </form>
+                </div>
+
+                <h3>Tareas del Grupo</h3>
+                <div id="group-tasks-list" class="task-list">
+                    <p class="empty-state">No hay tareas creadas en este grupo.</p>
+                </div>
+            </div>
+            
+            <div id="no-group-selected">
+                <h3>Detalles del Grupo</h3>
+                <div class="task-list" style="text-align: center; padding: 60px 20px;">
+                    <p class="empty-state" style="font-size: 16px;">👥 Selecciona un grupo de la lista para gestionar sus tareas y miembros.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="create-group-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px; text-align:center;">Crear Nuevo Grupo</h3>
+            <form id="create-group-form">
+                <div class="form-group"><label>Nombre del Grupo</label><input type="text" id="group-title" required></div>
+                <div class="form-group"><label>Descripción</label><textarea id="group-desc" rows="3" style="width:100%; border:1px solid #ddd; border-radius:4px; box-sizing:border-box; padding:8px;"></textarea></div>
+                <div class="modal-actions">
+                    <button type="button" id="cancel-group-btn" class="btn-secondary">Cancelar</button>
+                    <button type="submit" id="save-group-btn" class="btn-primary" style="width:auto; flex-grow:1;">Crear Grupo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="edit-group-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px; text-align:center;">Editar Grupo</h3>
+            <form id="edit-group-form">
+                <div class="form-group"><label>Nombre del Grupo</label><input type="text" id="edit-group-title" required></div>
+                <div class="form-group"><label>Descripción</label><textarea id="edit-group-desc" rows="3" style="width:100%; border:1px solid #ddd; border-radius:4px; box-sizing:border-box; padding:8px;"></textarea></div>
+                <div class="modal-actions">
+                    <button type="button" id="cancel-edit-group" class="btn-secondary">Cancelar</button>
+                    <button type="submit" id="save-edit-group" class="btn-primary" style="width:auto; flex-grow:1;">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="add-member-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px; text-align:center;">👥 Editar Miembros</h3>
+            
+            <div style="margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #555;">Miembros actuales:</h4>
+                <ul id="current-members-list" style="list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; border: 1px solid #eee; border-radius: 4px;">
+                    </ul>
+            </div>
+
+            <form id="add-member-form" style="border-top: 1px solid #eee; padding-top: 15px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #555;">Añadir nuevo miembro:</h4>
+                <div class="form-group">
+                    <input type="email" id="member-email" required placeholder="correo@ejemplo.com" style="width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" id="cancel-add-member" class="btn-secondary">Cerrar</button>
+                    <button type="submit" id="save-member-btn" class="btn-primary" style="width:auto; flex-grow:1;">Añadir Miembro</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="delete-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px; text-align:center;">Eliminar Tarea</h3>
+            <p>¿Estás seguro de que deseas borrar esta tarea del grupo? Esta acción no se puede deshacer.</p>
+            <div class="modal-actions">
+                <button id="cancel-delete-btn" class="btn-secondary">Cancelar</button>
+                <button id="confirm-delete-btn" class="btn-danger" style="width:auto; flex-grow:1;">Sí, eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="delete-group-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px; text-align:center;">Eliminar Grupo</h3>
+            <p style="text-align: center; color: #333; line-height: 1.5;">¿Estás completamente seguro de que deseas eliminar este grupo?<br><strong style="color: #dc3545;">Se borrarán todas las tareas y miembros asociados de raíz. Esta acción no se puede deshacer.</strong></p>
+            <div class="modal-actions">
+                <button id="cancel-delete-group-btn" class="btn-secondary">Cancelar</button>
+                <button id="confirm-delete-group-btn" class="btn-danger" style="width:auto; flex-grow:1; background-color: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">Sí, eliminar de raíz</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="kick-member-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px; text-align:center;">👤 Expulsar Miembro</h3>
+            <p style="text-align: center; color: #333; line-height: 1.5;">¿Estás seguro de que deseas expulsar a este usuario?<br><span style="color: #666; font-size: 13px;">Sus tareas asignadas se mantendrán dentro del grupo.</span></p>
+            <div class="modal-actions">
+                <button id="cancel-kick-btn" class="btn-secondary">Cancelar</button>
+                <button id="confirm-kick-btn" class="btn-danger" style="width:auto; flex-grow:1; background-color: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">Sí, expulsar</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="toast-notification" class="toast"></div>
+
+    <script type="module" src="js/grupos.js"></script>
+</body>
+</html>

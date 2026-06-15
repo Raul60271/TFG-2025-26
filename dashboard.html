@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor Personal - Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard-body">
+
+    <header class="navbar">
+        <div class="logo">Gestor de Tareas</div>
+        <nav class="nav-links">
+            <a href="dashboard.html" class="active">Personal</a>
+            <a href="grupos.html">Grupos</a>
+        </nav>
+        
+        <div class="profile-menu">
+            <div class="profile-trigger" id="profile-trigger" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <div style="width: 35px; height: 35px; position: relative;">
+                    <div id="avatar-placeholder" style="width: 100%; height: 100%; background-color: #007bff; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; text-transform: uppercase;">
+                        ?
+                    </div>
+                    <img id="user-avatar" src="" alt="Avatar" class="avatar hidden" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; position: absolute; top: 0; left: 0;">
+                </div>
+                <span id="user-name">Cargando...</span>
+            </div>
+            <div class="dropdown-content hidden" id="profile-dropdown">
+                <a href="perfil.html">⚙️ Mi Perfil</a>
+                <a href="#" id="logout-btn" class="text-danger">🚪 Cerrar Sesión</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="dashboard-container">
+        
+        <section class="task-form-card">
+            <h3>Nueva Tarea Personal</h3>
+            <form id="create-task-form">
+                <div class="form-group">
+                    <input type="text" id="task-title" required placeholder="Nombre de la tarea (Ej: Comprar el pan)">
+                </div>
+                <div class="form-group">
+                    <textarea id="task-desc" placeholder="Descripción (opcional)" rows="2"></textarea>
+                </div>
+                
+                <div class="form-group file-input-group">
+                    <label for="task-file" class="btn-secondary">📎 Adjuntar archivo (opcional)</label>
+                    <input type="file" id="task-file" class="hidden-file-input">
+                    <span id="file-name-display" class="file-name">Ningún archivo...</span>
+                </div>
+                
+                <button type="submit" class="btn-primary">Añadir Tarea</button>
+            </form>
+        </section>
+
+        <section class="task-list-section">
+            <h3>Mis Tareas</h3>
+            <div id="task-list" class="task-list">
+                <p class="empty-state">Cargando tus tareas...</p>
+                </div>
+        </section>
+    </main>
+
+    <div id="delete-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3>Eliminar Tarea</h3>
+            <p>¿Estás seguro de que deseas borrar esta tarea? Esta acción no se puede deshacer.</p>
+            <div class="modal-actions">
+                <button id="cancel-delete-btn" class="btn-secondary">Cancelar</button>
+                <button id="confirm-delete-btn" class="btn-danger">Sí, eliminar</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="toast-notification" class="toast"></div>
+
+    <script type="module" src="js/dashboard.js"></script>
+</body>
+</html>

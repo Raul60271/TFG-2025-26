@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Tareas - Perfil</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard-body"> 
+
+    <nav class="navbar">
+        <div class="logo">Mi Perfil</div>
+        <div class="nav-links">
+            <a href="dashboard.html" class="active">Volver al Dashboard</a>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <section class="auth-card" style="max-width: 500px; margin: 0 auto; text-align: center;">
+            
+            <div style="margin-bottom: 25px;">
+                
+                <div style="width: 120px; height: 120px; margin: 0 auto 15px auto; position: relative;">
+                    <div id="avatar-placeholder" style="width: 100%; height: 100%; background-color: #007bff; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 55px; font-weight: bold; border: 4px solid #007bff; box-sizing: border-box; text-transform: uppercase;">
+                        ?
+                    </div>
+                    <img id="avatar-preview" src="" alt="Foto de perfil" class="hidden" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 4px solid #007bff; box-sizing: border-box; position: absolute; top: 0; left: 0; background-color: white;">
+                </div>
+
+                <h2 id="display-username" style="margin: 5px 0;">Cargando...</h2>
+                <p id="display-email" style="color: #666; margin: 0;">cargando@email.com</p>
+            </div>
+
+            <div style="display: flex; justify-content: space-around; background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #ddd;">
+                <div>
+                    <h3 id="stat-total-tasks" style="margin: 0; color: #007bff; font-size: 28px;">0</h3>
+                    <p style="margin: 5px 0 0; font-size: 14px; color: #555; font-weight: bold;">Tareas Totales</p>
+                </div>
+                <div>
+                    <h3 id="stat-completed-tasks" style="margin: 0; color: #28a745; font-size: 28px;">0</h3>
+                    <p style="margin: 5px 0 0; font-size: 14px; color: #555; font-weight: bold;">Completadas</p>
+                </div>
+            </div>
+
+            <button id="open-edit-modal-btn" class="btn-primary" style="margin-bottom: 15px;">✏️ Editar Perfil</button>
+            <button id="open-delete-account-btn" class="btn-danger" style="width: 100%;">⚠️ Eliminar mi cuenta</button>
+            
+        </section>
+    </div>
+
+    <div id="edit-profile-modal" class="modal-overlay hidden">
+        <div class="modal-card" style="text-align: left;">
+            <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 15px; text-align: center;">Editar Perfil</h3>
+            
+            <form id="edit-profile-form">
+                <div class="form-group">
+                    <label for="edit-avatar">Cambiar Foto de Perfil</label>
+                    <input type="file" id="edit-avatar" accept="image/png, image/jpeg, image/webp" class="btn-secondary" style="width: 100%; box-sizing: border-box;">
+                </div>
+                <div class="form-group">
+                    <label for="edit-username">Nombre de Usuario</label>
+                    <input type="text" id="edit-username" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-password">Nueva Contraseña</label>
+                    <input type="password" id="edit-password" placeholder="Déjalo en blanco para no cambiarla" minlength="6">
+                </div>
+                
+                <div class="modal-actions" style="margin-top: 25px;">
+                    <button type="button" id="cancel-edit-btn" class="btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn-primary" id="save-btn" style="flex-grow: 1;">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="delete-account-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3 style="color: #dc3545; margin-top: 0;">¿Estás completamente seguro?</h3>
+            <p>Esta acción borrará tu perfil, todas tus tareas personales y te eliminará de los grupos. <b>Esta acción no se puede deshacer.</b></p>
+            <div class="modal-actions">
+                <button id="cancel-delete-account" class="btn-secondary">Cancelar</button>
+                <button id="confirm-delete-account" class="btn-danger">Sí, borrar cuenta</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-notification" class="toast"></div>
+
+    <script type="module" src="js/perfil.js"></script>
+</body>
+</html>
