@@ -11,16 +11,25 @@ const createTaskForm = document.getElementById('create-task-form');
 const taskTitleInput = document.getElementById('task-title');
 const taskDescInput = document.getElementById('task-desc');
 const taskFileInput = document.getElementById('task-file');
-const taskDateInput = document.getElementById('task-date'); // Referencia al nuevo input de fecha
+const taskDateInput = document.getElementById('task-date');
 const fileNameDisplay = document.getElementById('file-name-display');
 const taskListContainer = document.getElementById('task-list');
 
-// Referencias del nuevo Modal
+// Referencias de los nuevos filtros en tiempo real
+const searchTaskInput = document.getElementById('search-task');
+const filterFileSelect = document.getElementById('filter-file');
+const filterDateInput = document.getElementById('filter-date');
+const clearFiltersBtn = document.getElementById('clear-filters-btn');
+
+// Referencias del Modal de borrado
 const deleteModal = document.getElementById('delete-modal');
 const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
 const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
 let taskToDeleteId = null; 
 let fileToDeleteUrl = null; 
+
+// Almacén global para las tareas descargadas y filtrado en cliente
+let allTasks = [];
 
 // --- SISTEMA DE NOTIFICACIONES ---
 function showToast(message, type) {
@@ -100,7 +109,7 @@ async function deleteFileFromStorage(fileUrl) {
     }
 }
 
-// --- 6. CARGAR TAREAS DEL USUARIO ---
+// --- 6. CARGAR TAREAS Y APLICAR FILTROS ---
 async function loadTasks(userId) {
     const { data: tasks, error } = await supabase
         .from('personal_tasks')
@@ -112,27 +121,57 @@ async function loadTasks(userId) {
         showToast('Error al cargar tareas', 'error');
         return;
     }
-    renderTasks(tasks);
+    
+    allTasks = tasks || [];
+    applyFiltersAndRender();
+}
+
+// Función que procesa los filtros de búsqueda, archivo y fecha concreta
+function applyFiltersAndRender() {
+    const searchTerm = searchTaskInput.value.toLowerCase().trim();
+    const fileFilter = filterFileSelect.value;
+    const dateFilter = filterDateInput.value;
+
+    const filteredTasks = allTasks.filter(task => {
+        // A. Filtro por título (buscador de texto)
+        const matchesTitle = task.title.toLowerCase().includes(searchTerm);
+
+        // B. Filtro por archivo adjunto
+        let matchesFile = true;
+        if (fileFilter === 'with') {
+            matchesFile = Boolean(task.file_url);
+        } else if (fileFilter === 'without') {
+            matchesFile = !task.file_url;
+        }
+
+        // C. Filtro por fecha concreta exacta
+        let matchesDate = true;
+        if (dateFilter) {
+            matchesDate = task.due_date === dateFilter;
+        }
+
+        return matchesTitle && matchesFile && matchesDate;
+    });
+
+    renderTasks(filteredTasks);
 }
 
 function renderTasks(tasks) {
     taskListContainer.innerHTML = ''; 
 
     if (tasks.length === 0) {
-        taskListContainer.innerHTML = '<p class="empty-state">No tienes tareas pendientes. ¡Crea una!</p>';
+        taskListContainer.innerHTML = '<p class="empty-state">No se encontraron tareas con los filtros seleccionados.</p>';
         return;
     }
 
-    const todayStr = new Date().toISOString().split('T')[0]; // Fecha actual en formato YYYY-MM-DD para comparar
+    const todayStr = new Date().toISOString().split('T')[0];
 
     tasks.forEach(task => {
         const taskElement = document.createElement('div');
         taskElement.className = `task-item ${task.is_completed ? 'completed' : ''}`;
         
-        // Formatear la fecha límite de forma sutil si existe
         let dueDateMarkup = '';
         if (task.due_date) {
-            // Comprobamos si está vencida (y la tarea no está completada)
             const isOverdue = task.due_date < todayStr && !task.is_completed;
             const dateStyle = isOverdue 
                 ? 'background: #ffe6e6; color: #dc3545; border: 1px solid #f5c6cb;' 
@@ -173,15 +212,13 @@ function renderTasks(tasks) {
             </div>
         `;
 
-        // Evento para completar tarea
+        // Eventos de la tarjeta
         const completeBtn = taskElement.querySelector('.complete-btn');
         completeBtn.addEventListener('click', () => toggleTaskCompletion(task.id, !task.is_completed));
 
-        // Evento para borrar tarea
         const deleteBtn = taskElement.querySelector('.delete-btn');
         deleteBtn.addEventListener('click', () => openDeleteModal(task.id, task.file_url));
 
-        // Evento para sustituir archivo
         const replaceInput = taskElement.querySelector('.hidden-replace-input');
         replaceInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
@@ -193,7 +230,19 @@ function renderTasks(tasks) {
     });
 }
 
-// --- 7. CREAR NUEVA TAREA CON ARCHIVO Y FECHA ---
+// --- 7. EVENTOS DE LOS FILTROS EN TIEMPO REAL ---
+searchTaskInput.addEventListener('input', applyFiltersAndRender);
+filterFileSelect.addEventListener('change', applyFiltersAndRender);
+filterDateInput.addEventListener('change', applyFiltersAndRender);
+
+clearFiltersBtn.addEventListener('click', () => {
+    searchTaskInput.value = '';
+    filterFileSelect.value = 'all';
+    filterDateInput.value = '';
+    applyFiltersAndRender();
+});
+
+// --- 8. CREAR NUEVA TAREA ---
 createTaskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -207,7 +256,7 @@ createTaskForm.addEventListener('submit', async (e) => {
 
     const title = taskTitleInput.value;
     const description = taskDescInput.value;
-    const dueDate = taskDateInput.value || null; // Capturamos la fecha seleccionada (o null si está vacía)
+    const dueDate = taskDateInput.value || null;
     const file = taskFileInput.files[0];
 
     let fileUrl = null;
@@ -243,7 +292,7 @@ createTaskForm.addEventListener('submit', async (e) => {
             user_id: session.user.id, 
             title: title, 
             description: description || null,
-            due_date: dueDate, // Guardamos la fecha en la columna correspondiente
+            due_date: dueDate,
             file_url: fileUrl,
             file_name: fileName
         }]);
@@ -261,7 +310,7 @@ createTaskForm.addEventListener('submit', async (e) => {
     submitBtn.disabled = false;
 });
 
-// --- 8. LÓGICA PARA SUSTITUIR/AÑADIR ARCHIVO EN TAREA EXISTENTE ---
+// --- 9. SUSTITUIR ARCHIVO ---
 async function replaceTaskFile(taskId, oldFileUrl, newFile) {
     showToast('Subiendo nuevo archivo...', 'success');
 
@@ -307,7 +356,7 @@ async function replaceTaskFile(taskId, oldFileUrl, newFile) {
     }
 }
 
-// --- 9. COMPLETAR / DESCOMPLETAR TAREA ---
+// --- 10. COMPLETAR TAREA ---
 async function toggleTaskCompletion(taskId, newStatus) {
     const { error } = await supabase
         .from('personal_tasks')
@@ -320,7 +369,7 @@ async function toggleTaskCompletion(taskId, newStatus) {
     }
 }
 
-// --- 10. LÓGICA DEL MODAL DE BORRADO (SQL + STORAGE) ---
+// --- 11. BORRAR TAREA ---
 function openDeleteModal(taskId, fileUrl) {
     taskToDeleteId = taskId;
     fileToDeleteUrl = fileUrl; 

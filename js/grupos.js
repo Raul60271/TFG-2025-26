@@ -33,16 +33,21 @@ const deleteGroupModal = document.getElementById('delete-group-modal');
 const confirmDeleteGroupBtn = document.getElementById('confirm-delete-group-btn');
 const cancelDeleteGroupBtn = document.getElementById('cancel-delete-group-btn');
 
-// Tareas del grupo
+// Tareas del grupo y referencias a sus filtros
 const groupTaskForm = document.getElementById('group-task-form');
 const groupTaskTitle = document.getElementById('group-task-title');
 const groupTaskDesc = document.getElementById('group-task-desc');
 const groupTaskAssignee = document.getElementById('group-task-assignee');
 const groupTaskFile = document.getElementById('group-task-file');
-const groupTaskDateInput = document.getElementById('group-task-date'); // Referencia al input de fecha del grupo
+const groupTaskDateInput = document.getElementById('group-task-date');
 const groupFileNamePreview = document.getElementById('group-file-name-preview');
 const groupTasksList = document.getElementById('group-tasks-list');
 const addGroupTaskBtn = document.getElementById('add-group-task-btn');
+
+const groupSearchTaskInput = document.getElementById('group-search-task');
+const groupFilterFileSelect = document.getElementById('group-filter-file');
+const groupFilterDateInput = document.getElementById('group-filter-date');
+const groupClearFiltersBtn = document.getElementById('group-clear-filters-btn');
 
 // Modales de grupo
 const createGroupModal = document.getElementById('create-group-modal');
@@ -70,6 +75,7 @@ const currentMembersList = document.getElementById('current-members-list');
 let currentUserId = null;
 let currentGroup = null; 
 let currentGroupMembers = []; 
+let allGroupTasks = []; // Almacén local de tareas del grupo activo
 
 // --- NOTIFICACIONES TOAST ---
 function showToast(message, type) {
@@ -183,6 +189,11 @@ async function selectGroup(group) {
         adminGroupActions.style.display = 'none';
     }
 
+    // Resetear valores de filtros al cambiar de grupo
+    if (groupSearchTaskInput) groupSearchTaskInput.value = '';
+    if (groupFilterFileSelect) groupFilterFileSelect.value = 'all';
+    if (groupFilterDateInput) groupFilterDateInput.value = '';
+
     await loadGroupMembers(group);
     await loadGroupTasks();
 }
@@ -227,130 +238,7 @@ async function loadGroupMembers(group) {
     }
 }
 
-// --- CREAR NUEVO GRUPO ---
-createGroupForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    saveGroupBtn.disabled = true;
-    try {
-        const { error } = await supabase.from('groups').insert([{
-            name: groupTitleInput.value.trim(),
-            description: groupDescInput.value.trim() || null,
-            admin_id: currentUserId
-        }]);
-        if (error) throw error;
-        showToast('¡Grupo creado con éxito!', 'success');
-        createGroupModal.classList.add('hidden');
-        loadGroups();
-    } catch (err) { showToast(err.message, 'error'); }
-    finally { saveGroupBtn.disabled = false; }
-});
-
-// --- EDITAR GRUPO ---
-openEditGroupBtn.addEventListener('click', () => {
-    editGroupTitle.value = currentGroup.name;
-    editGroupDesc.value = currentGroup.description || '';
-    editGroupModal.classList.remove('hidden');
-});
-
-editGroupForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    try {
-        const { error } = await supabase.from('groups')
-            .update({ name: editGroupTitle.value.trim(), description: editGroupDesc.value.trim() || null })
-            .eq('id', currentGroup.id);
-        if (error) throw error;
-
-        showToast('Grupo actualizado', 'success');
-        currentGroup.name = editGroupTitle.value.trim();
-        currentGroup.description = editGroupDesc.value.trim();
-        selectedGroupName.textContent = `👥 ${currentGroup.name}`;
-        selectedGroupDesc.textContent = currentGroup.description || 'Sin descripción...';
-        editGroupModal.classList.add('hidden');
-        loadGroups();
-    } catch (err) { showToast(err.message, 'error'); }
-});
-
-// --- EDITAR / AÑADIR / EXPULSAR MIEMBROS ---
-openAddMemberBtn.addEventListener('click', () => { 
-    memberEmailInput.value = ''; 
-    renderCurrentMembersList(); 
-    addMemberModal.classList.remove('hidden'); 
-});
-
-function renderCurrentMembersList() {
-    currentMembersList.innerHTML = '';
-    
-    currentGroupMembers.forEach(member => {
-        const li = document.createElement('li');
-        li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #f9f9f9; font-size: 13px;';
-        
-        const isAdmin = member.id === currentGroup.admin_id;
-
-        li.innerHTML = `
-            <span><strong>${member.username}</strong> ${isAdmin ? '<span style="color: gold;" title="Administrador">👑</span>' : `(${member.email})`}</span>
-            ${!isAdmin ? `<button class="kick-member-btn" data-id="${member.id}" style="background: none; border: none; color: #dc3545; cursor: pointer; font-size: 16px;" title="Expulsar miembro">❌</button>` : ''}
-        `;
-        
-        currentMembersList.appendChild(li);
-    });
-
-    const kickBtns = currentMembersList.querySelectorAll('.kick-member-btn');
-    kickBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            userIdToKick = e.currentTarget.getAttribute('data-id');
-            kickMemberModal.classList.remove('hidden');
-        });
-    });
-}
-
-// --- AÑADIR MIEMBRO AL GRUPO ---
-addMemberForm.addEventListener('submit', async (e) => {
-    e.preventDefault(); 
-    
-    const email = memberEmailInput.value.trim();
-    const saveBtn = document.getElementById('save-member-btn');
-    saveBtn.disabled = true;
-    
-    try {
-        const { data: targetUser, error: searchErr } = await supabase
-            .from('users')
-            .select('id')
-            .eq('email', email)
-            .maybeSingle();
-            
-        if (searchErr || !targetUser) throw new Error('El usuario con ese correo no está registrado.');
-        if (targetUser.id === currentGroup.admin_id) throw new Error('Ese usuario ya es el administrador.');
-
-        const { data: existing } = await supabase
-            .from('group_members')
-            .select('*')
-            .eq('group_id', currentGroup.id)
-            .eq('user_id', targetUser.id)
-            .maybeSingle();
-            
-        if (existing) throw new Error('El usuario ya pertenece a este grupo.');
-
-        const { error: insErr } = await supabase
-            .from('group_members')
-            .insert([{ group_id: currentGroup.id, user_id: targetUser.id }]);
-            
-        if (insErr) throw insErr;
-
-        showToast('¡Usuario añadido al grupo!', 'success');
-        memberEmailInput.value = '';
-        
-        await loadGroupMembers(currentGroup);
-        await loadGroupTasks();
-        renderCurrentMembersList(); 
-
-    } catch (err) { 
-        showToast(err.message, 'error'); 
-    } finally {
-        saveBtn.disabled = false;
-    }
-});
-
-// --- CARGAR Y RENDERIZAR TAREAS DEL GRUPO ---
+// --- CARGAR Y FILTRAR TAREAS DEL GRUPO ---
 async function loadGroupTasks() {
     const { data: tasks, error } = await supabase
         .from('group_tasks')
@@ -360,14 +248,46 @@ async function loadGroupTasks() {
 
     if (error) { showToast('Error al cargar tareas', 'error'); return; }
 
+    allGroupTasks = tasks || [];
+    applyGroupFiltersAndRender();
+}
+
+// Lógica de filtrado en cliente para grupos
+function applyGroupFiltersAndRender() {
+    const searchTerm = groupSearchTaskInput ? groupSearchTaskInput.value.toLowerCase().trim() : '';
+    const fileFilter = groupFilterFileSelect ? groupFilterFileSelect.value : 'all';
+    const dateFilter = groupFilterDateInput ? groupFilterDateInput.value : '';
+
+    const filteredTasks = allGroupTasks.filter(task => {
+        const matchesTitle = task.title.toLowerCase().includes(searchTerm);
+
+        let matchesFile = true;
+        if (fileFilter === 'with') {
+            matchesFile = Boolean(task.file_url);
+        } else if (fileFilter === 'without') {
+            matchesFile = !task.file_url;
+        }
+
+        let matchesDate = true;
+        if (dateFilter) {
+            matchesDate = task.due_date === dateFilter;
+        }
+
+        return matchesTitle && matchesFile && matchesDate;
+    });
+
+    renderGroupTasks(filteredTasks);
+}
+
+function renderGroupTasks(tasks) {
     groupTasksList.innerHTML = '';
     if (!tasks || tasks.length === 0) {
-        groupTasksList.innerHTML = '<p class="empty-state">No hay tareas creadas en este grupo.</p>';
+        groupTasksList.innerHTML = '<p class="empty-state">No se encontraron tareas con los filtros seleccionados.</p>';
         return;
     }
 
     const isAdmin = currentGroup.admin_id === currentUserId;
-    const todayStr = new Date().toISOString().split('T')[0]; // Fecha actual para comparar vencimientos
+    const todayStr = new Date().toISOString().split('T')[0];
 
     tasks.forEach(task => {
         const canModify = isAdmin || task.assigned_to === currentUserId;
@@ -378,7 +298,6 @@ async function loadGroupTasks() {
         const assigneeUser = currentGroupMembers.find(m => m.id === task.assigned_to);
         const assigneeName = assigneeUser ? assigneeUser.username : 'No asignado';
 
-        // Renderizado sutil de la fecha límite
         let dueDateMarkup = '';
         if (task.due_date) {
             const isOverdue = task.due_date < todayStr && !task.is_completed;
@@ -520,7 +439,21 @@ async function loadGroupTasks() {
     });
 }
 
-// --- CREAR TAREA DENTRO DEL GRUPO (CON FECHA LÍMITE) ---
+// --- EVENTOS DE FILTROS EN TIEMPO REAL PARA GRUPOS ---
+if (groupSearchTaskInput) groupSearchTaskInput.addEventListener('input', applyGroupFiltersAndRender);
+if (groupFilterFileSelect) groupFilterFileSelect.addEventListener('change', applyGroupFiltersAndRender);
+if (groupFilterDateInput) groupFilterDateInput.addEventListener('change', applyGroupFiltersAndRender);
+
+if (groupClearFiltersBtn) {
+    groupClearFiltersBtn.addEventListener('click', () => {
+        if (groupSearchTaskInput) groupSearchTaskInput.value = '';
+        if (groupFilterFileSelect) groupFilterFileSelect.value = 'all';
+        if (groupFilterDateInput) groupFilterDateInput.value = '';
+        applyGroupFiltersAndRender();
+    });
+}
+
+// --- CREAR TAREA DENTRO DEL GRUPO ---
 groupTaskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     addGroupTaskBtn.disabled = true;
@@ -529,7 +462,7 @@ groupTaskForm.addEventListener('submit', async (e) => {
     const title = groupTaskTitle.value.trim();
     const description = groupTaskDesc.value.trim();
     const assignedTo = groupTaskAssignee.value; 
-    const dueDate = groupTaskDateInput.value || null; // Capturamos la fecha opcional seleccionada
+    const dueDate = groupTaskDateInput.value || null;
     const file = groupTaskFile.files[0];
 
     let fileUrl = null;
@@ -555,7 +488,7 @@ groupTaskForm.addEventListener('submit', async (e) => {
             created_by: currentUserId,
             file_url: fileUrl,
             file_name: fileNameStr,
-            due_date: dueDate, // Guardamos la fecha límite en la tabla de grupo
+            due_date: dueDate,
             is_completed: false
         }]);
 
@@ -572,7 +505,125 @@ groupTaskForm.addEventListener('submit', async (e) => {
     }
 });
 
-// --- LÓGICA DEL MODAL DE BORRADO DE TAREAS ---
+// --- RESTO DE MODALES (CREACIÓN, EDICIÓN Y EXPULSIÓN DE MIEMBROS / ELIMINACIÓN DE GRUPOS) ---
+createGroupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    saveGroupBtn.disabled = true;
+    try {
+        const { error } = await supabase.from('groups').insert([{
+            name: groupTitleInput.value.trim(),
+            description: groupDescInput.value.trim() || null,
+            admin_id: currentUserId
+        }]);
+        if (error) throw error;
+        showToast('¡Grupo creado con éxito!', 'success');
+        createGroupModal.classList.add('hidden');
+        loadGroups();
+    } catch (err) { showToast(err.message, 'error'); }
+    finally { saveGroupBtn.disabled = false; }
+});
+
+openEditGroupBtn.addEventListener('click', () => {
+    editGroupTitle.value = currentGroup.name;
+    editGroupDesc.value = currentGroup.description || '';
+    editGroupModal.classList.remove('hidden');
+});
+
+editGroupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        const { error } = await supabase.from('groups')
+            .update({ name: editGroupTitle.value.trim(), description: editGroupDesc.value.trim() || null })
+            .eq('id', currentGroup.id);
+        if (error) throw error;
+
+        showToast('Grupo actualizado', 'success');
+        currentGroup.name = editGroupTitle.value.trim();
+        currentGroup.description = editGroupDesc.value.trim();
+        selectedGroupName.textContent = `👥 ${currentGroup.name}`;
+        selectedGroupDesc.textContent = currentGroup.description || 'Sin descripción...';
+        editGroupModal.classList.add('hidden');
+        loadGroups();
+    } catch (err) { showToast(err.message, 'error'); }
+});
+
+openAddMemberBtn.addEventListener('click', () => { 
+    memberEmailInput.value = ''; 
+    renderCurrentMembersList(); 
+    addMemberModal.classList.remove('hidden'); 
+});
+
+function renderCurrentMembersList() {
+    currentMembersList.innerHTML = '';
+    
+    currentGroupMembers.forEach(member => {
+        const li = document.createElement('li');
+        li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #f9f9f9; font-size: 13px;';
+        
+        const isAdmin = member.id === currentGroup.admin_id;
+
+        li.innerHTML = `
+            <span><strong>${member.username}</strong> ${isAdmin ? '<span style="color: gold;" title="Administrador">👑</span>' : `(${member.email})`}</span>
+            ${!isAdmin ? `<button class="kick-member-btn" data-id="${member.id}" style="background: none; border: none; color: #dc3545; cursor: pointer; font-size: 16px;" title="Expulsar miembro">❌</button>` : ''}
+        `;
+        
+        currentMembersList.appendChild(li);
+    });
+
+    const kickBtns = currentMembersList.querySelectorAll('.kick-member-btn');
+    kickBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            userIdToKick = e.currentTarget.getAttribute('data-id');
+            kickMemberModal.classList.remove('hidden');
+        });
+    });
+}
+
+addMemberForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); 
+    const email = memberEmailInput.value.trim();
+    const saveBtn = document.getElementById('save-member-btn');
+    saveBtn.disabled = true;
+    
+    try {
+        const { data: targetUser, error: searchErr } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', email)
+            .maybeSingle();
+            
+        if (searchErr || !targetUser) throw new Error('El usuario con ese correo no está registrado.');
+        if (targetUser.id === currentGroup.admin_id) throw new Error('Ese usuario ya es el administrador.');
+
+        const { data: existing } = await supabase
+            .from('group_members')
+            .select('*')
+            .eq('group_id', currentGroup.id)
+            .eq('user_id', targetUser.id)
+            .maybeSingle();
+            
+        if (existing) throw new Error('El usuario ya pertenece a este grupo.');
+
+        const { error: insErr } = await supabase
+            .from('group_members')
+            .insert([{ group_id: currentGroup.id, user_id: targetUser.id }]);
+            
+        if (insErr) throw insErr;
+
+        showToast('¡Usuario añadido al grupo!', 'success');
+        memberEmailInput.value = '';
+        
+        await loadGroupMembers(currentGroup);
+        await loadGroupTasks();
+        renderCurrentMembersList(); 
+
+    } catch (err) { 
+        showToast(err.message, 'error'); 
+    } finally {
+        saveBtn.disabled = false;
+    }
+});
+
 cancelDeleteBtn.addEventListener('click', () => {
     deleteModal.classList.add('hidden');
     taskToDeleteId = null;
@@ -595,7 +646,6 @@ confirmDeleteBtn.addEventListener('click', async () => {
     }
 });
 
-// --- LÓGICA DEL MODAL DE BORRADO DE GRUPOS COMPLETOS ---
 openDeleteGroupBtn.addEventListener('click', () => {
     deleteGroupModal.classList.remove('hidden');
 });
@@ -636,7 +686,6 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
     }
 });
 
-// --- LÓGICA DEL MODAL DE EXPULSAR MIEMBRO ---
 cancelKickBtn.addEventListener('click', () => {
     kickMemberModal.classList.add('hidden');
     userIdToKick = null;
