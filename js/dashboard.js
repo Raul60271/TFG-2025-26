@@ -11,6 +11,7 @@ const createTaskForm = document.getElementById('create-task-form');
 const taskTitleInput = document.getElementById('task-title');
 const taskDescInput = document.getElementById('task-desc');
 const taskFileInput = document.getElementById('task-file');
+const taskDateInput = document.getElementById('task-date'); // Referencia al nuevo input de fecha
 const fileNameDisplay = document.getElementById('file-name-display');
 const taskListContainer = document.getElementById('task-list');
 
@@ -37,7 +38,6 @@ async function checkAuthAndLoadProfile() {
     }
 
     const userId = session.user.id;
-    // Pedide también la foto
     const { data: userData, error: userError } = await supabase
         .from('users')
         .select('username, profile_picture_url')
@@ -47,7 +47,6 @@ async function checkAuthAndLoadProfile() {
     if (userData && !userError) {
         userNameSpan.textContent = userData.username;
         
-        // Lógica del avatar
         const avatarPlaceholder = document.getElementById('avatar-placeholder');
         const userAvatar = document.getElementById('user-avatar');
 
@@ -56,7 +55,6 @@ async function checkAuthAndLoadProfile() {
             userAvatar.classList.remove('hidden');
             avatarPlaceholder.classList.add('hidden');
         } else {
-            // Pone la inicial si no hay foto
             avatarPlaceholder.textContent = userData.username.charAt(0);
             userAvatar.classList.add('hidden');
             avatarPlaceholder.classList.remove('hidden');
@@ -125,14 +123,34 @@ function renderTasks(tasks) {
         return;
     }
 
+    const todayStr = new Date().toISOString().split('T')[0]; // Fecha actual en formato YYYY-MM-DD para comparar
+
     tasks.forEach(task => {
         const taskElement = document.createElement('div');
         taskElement.className = `task-item ${task.is_completed ? 'completed' : ''}`;
         
-        // Añade un input de archivo oculto para la función de sustituir
+        // Formatear la fecha límite de forma sutil si existe
+        let dueDateMarkup = '';
+        if (task.due_date) {
+            // Comprobamos si está vencida (y la tarea no está completada)
+            const isOverdue = task.due_date < todayStr && !task.is_completed;
+            const dateStyle = isOverdue 
+                ? 'background: #ffe6e6; color: #dc3545; border: 1px solid #f5c6cb;' 
+                : 'background: #f1f3f5; color: #495057; border: 1px solid #dee2e6;';
+            
+            dueDateMarkup = `
+                <span style="font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; ${dateStyle}" title="${isOverdue ? '¡Fecha límite vencida!' : 'Fecha límite'}">
+                    📅 ${task.due_date} ${isOverdue ? '⚠️' : ''}
+                </span>
+            `;
+        }
+
         taskElement.innerHTML = `
             <div class="task-content">
-                <h4 class="task-title">${task.title}</h4>
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px;">
+                    <h4 class="task-title" style="margin: 0;">${task.title}</h4>
+                    ${dueDateMarkup}
+                </div>
                 ${task.description ? `<p>${task.description}</p>` : ''}
                 ${task.file_url ? `
                     <div style="margin-top: 8px;">
@@ -175,7 +193,7 @@ function renderTasks(tasks) {
     });
 }
 
-// --- 7. CREAR NUEVA TAREA CON ARCHIVO ---
+// --- 7. CREAR NUEVA TAREA CON ARCHIVO Y FECHA ---
 createTaskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -189,6 +207,7 @@ createTaskForm.addEventListener('submit', async (e) => {
 
     const title = taskTitleInput.value;
     const description = taskDescInput.value;
+    const dueDate = taskDateInput.value || null; // Capturamos la fecha seleccionada (o null si está vacía)
     const file = taskFileInput.files[0];
 
     let fileUrl = null;
@@ -224,6 +243,7 @@ createTaskForm.addEventListener('submit', async (e) => {
             user_id: session.user.id, 
             title: title, 
             description: description || null,
+            due_date: dueDate, // Guardamos la fecha en la columna correspondiente
             file_url: fileUrl,
             file_name: fileName
         }]);
@@ -243,12 +263,11 @@ createTaskForm.addEventListener('submit', async (e) => {
 
 // --- 8. LÓGICA PARA SUSTITUIR/AÑADIR ARCHIVO EN TAREA EXISTENTE ---
 async function replaceTaskFile(taskId, oldFileUrl, newFile) {
-    showToast('Subiendo nuevo archivo...', 'success'); // Feedback visual inmediato
+    showToast('Subiendo nuevo archivo...', 'success');
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
 
-    // A. Subir el nuevo archivo
     const fileExt = newFile.name.split('.').pop();
     const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
     const filePath = `${session.user.id}/${uniqueFileName}`; 
@@ -262,19 +281,16 @@ async function replaceTaskFile(taskId, oldFileUrl, newFile) {
         return;
     }
 
-    // Obtiene la nueva URL
     const { data: publicUrlData } = supabase.storage
         .from('task_files')
         .getPublicUrl(filePath);
     const newFileUrl = publicUrlData.publicUrl;
     const newFileName = newFile.name;
 
-    // B. Borrar el archivo antiguo de Storage (Si existía)
     if (oldFileUrl) {
         await deleteFileFromStorage(oldFileUrl);
     }
 
-    // C. Actualizar la base de datos SQL con la nueva URL
     const { error: updateError } = await supabase
         .from('personal_tasks')
         .update({ 
@@ -287,7 +303,7 @@ async function replaceTaskFile(taskId, oldFileUrl, newFile) {
         showToast('Error al actualizar la tarea', 'error');
     } else {
         showToast('Archivo sustituido correctamente', 'success');
-        loadTasks(session.user.id); // Recargamos para mostrar el nuevo archivo
+        loadTasks(session.user.id);
     }
 }
 
@@ -320,7 +336,6 @@ cancelDeleteBtn.addEventListener('click', () => {
 confirmDeleteBtn.addEventListener('click', async () => {
     if (!taskToDeleteId) return;
 
-    // Usa la nueva función auxiliar
     if (fileToDeleteUrl) {
         await deleteFileFromStorage(fileToDeleteUrl);
     }

@@ -25,7 +25,7 @@ let taskToDeleteId = null;
 const kickMemberModal = document.getElementById('kick-member-modal');
 const confirmKickBtn = document.getElementById('confirm-kick-btn');
 const cancelKickBtn = document.getElementById('cancel-kick-btn');
-let userIdToKick = null; // Guardará temporalmente el ID del usuario a expulsar
+let userIdToKick = null;
 
 // Modal de eliminación de grupo
 const openDeleteGroupBtn = document.getElementById('open-delete-group-btn');
@@ -39,6 +39,7 @@ const groupTaskTitle = document.getElementById('group-task-title');
 const groupTaskDesc = document.getElementById('group-task-desc');
 const groupTaskAssignee = document.getElementById('group-task-assignee');
 const groupTaskFile = document.getElementById('group-task-file');
+const groupTaskDateInput = document.getElementById('group-task-date'); // Referencia al input de fecha del grupo
 const groupFileNamePreview = document.getElementById('group-file-name-preview');
 const groupTasksList = document.getElementById('group-tasks-list');
 const addGroupTaskBtn = document.getElementById('add-group-task-btn');
@@ -68,7 +69,7 @@ const currentMembersList = document.getElementById('current-members-list');
 
 let currentUserId = null;
 let currentGroup = null; 
-let currentGroupMembers = []; // Lista de objetos { id, username, email }
+let currentGroupMembers = []; 
 
 // --- NOTIFICACIONES TOAST ---
 function showToast(message, type) {
@@ -296,7 +297,6 @@ function renderCurrentMembersList() {
     const kickBtns = currentMembersList.querySelectorAll('.kick-member-btn');
     kickBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
-            // Guardamos el ID globalmente usando currentTarget y abrimos el modal flotante
             userIdToKick = e.currentTarget.getAttribute('data-id');
             kickMemberModal.classList.remove('hidden');
         });
@@ -305,7 +305,6 @@ function renderCurrentMembersList() {
 
 // --- AÑADIR MIEMBRO AL GRUPO ---
 addMemberForm.addEventListener('submit', async (e) => {
-    // 1. Evitar que la página se reinicie
     e.preventDefault(); 
     
     const email = memberEmailInput.value.trim();
@@ -313,7 +312,6 @@ addMemberForm.addEventListener('submit', async (e) => {
     saveBtn.disabled = true;
     
     try {
-        // 2. Busca al usuario por su email
         const { data: targetUser, error: searchErr } = await supabase
             .from('users')
             .select('id')
@@ -323,7 +321,6 @@ addMemberForm.addEventListener('submit', async (e) => {
         if (searchErr || !targetUser) throw new Error('El usuario con ese correo no está registrado.');
         if (targetUser.id === currentGroup.admin_id) throw new Error('Ese usuario ya es el administrador.');
 
-        // 3. Verifica si ya está en el grupo
         const { data: existing } = await supabase
             .from('group_members')
             .select('*')
@@ -333,20 +330,18 @@ addMemberForm.addEventListener('submit', async (e) => {
             
         if (existing) throw new Error('El usuario ya pertenece a este grupo.');
 
-        // 4. Inserta en la base de datos
         const { error: insErr } = await supabase
             .from('group_members')
             .insert([{ group_id: currentGroup.id, user_id: targetUser.id }]);
             
         if (insErr) throw insErr;
 
-        // 5. Notifica, vacia el input y actualiza listas al instante
         showToast('¡Usuario añadido al grupo!', 'success');
         memberEmailInput.value = '';
         
         await loadGroupMembers(currentGroup);
         await loadGroupTasks();
-        renderCurrentMembersList(); // Refresca la interfaz del modal sin cerrarlo
+        renderCurrentMembersList(); 
 
     } catch (err) { 
         showToast(err.message, 'error'); 
@@ -355,7 +350,7 @@ addMemberForm.addEventListener('submit', async (e) => {
     }
 });
 
-// --- CARGAR Y RENDERIZAR TAREAS DEL GRUPO (CON REASIGNACIÓN PARA MODERADORES) ---
+// --- CARGAR Y RENDERIZAR TAREAS DEL GRUPO ---
 async function loadGroupTasks() {
     const { data: tasks, error } = await supabase
         .from('group_tasks')
@@ -372,6 +367,7 @@ async function loadGroupTasks() {
     }
 
     const isAdmin = currentGroup.admin_id === currentUserId;
+    const todayStr = new Date().toISOString().split('T')[0]; // Fecha actual para comparar vencimientos
 
     tasks.forEach(task => {
         const canModify = isAdmin || task.assigned_to === currentUserId;
@@ -381,6 +377,21 @@ async function loadGroupTasks() {
 
         const assigneeUser = currentGroupMembers.find(m => m.id === task.assigned_to);
         const assigneeName = assigneeUser ? assigneeUser.username : 'No asignado';
+
+        // Renderizado sutil de la fecha límite
+        let dueDateMarkup = '';
+        if (task.due_date) {
+            const isOverdue = task.due_date < todayStr && !task.is_completed;
+            const dateStyle = isOverdue 
+                ? 'background: #ffe6e6; color: #dc3545; border: 1px solid #f5c6cb;' 
+                : 'background: #f1f3f5; color: #495057; border: 1px solid #dee2e6;';
+            
+            dueDateMarkup = `
+                <span style="font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; ${dateStyle}" title="${isOverdue ? '¡Fecha límite vencida!' : 'Fecha límite'}">
+                    📅 ${task.due_date} ${isOverdue ? '⚠️' : ''}
+                </span>
+            `;
+        }
 
         let assigneeElementMarkup = '';
         if (isAdmin) {
@@ -403,7 +414,10 @@ async function loadGroupTasks() {
 
         item.innerHTML = `
             <div class="task-content">
-                <h4 class="task-title">${task.title}</h4>
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px;">
+                    <h4 class="task-title" style="margin: 0;">${task.title}</h4>
+                    ${dueDateMarkup}
+                </div>
                 ${task.description ? `<p>${task.description}</p>` : ''}
                 
                 <div style="margin-top: 8px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
@@ -506,7 +520,7 @@ async function loadGroupTasks() {
     });
 }
 
-// --- CREAR TAREA DENTRO DEL GRUPO ---
+// --- CREAR TAREA DENTRO DEL GRUPO (CON FECHA LÍMITE) ---
 groupTaskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     addGroupTaskBtn.disabled = true;
@@ -515,6 +529,7 @@ groupTaskForm.addEventListener('submit', async (e) => {
     const title = groupTaskTitle.value.trim();
     const description = groupTaskDesc.value.trim();
     const assignedTo = groupTaskAssignee.value; 
+    const dueDate = groupTaskDateInput.value || null; // Capturamos la fecha opcional seleccionada
     const file = groupTaskFile.files[0];
 
     let fileUrl = null;
@@ -540,6 +555,7 @@ groupTaskForm.addEventListener('submit', async (e) => {
             created_by: currentUserId,
             file_url: fileUrl,
             file_name: fileNameStr,
+            due_date: dueDate, // Guardamos la fecha límite en la tabla de grupo
             is_completed: false
         }]);
 
@@ -595,27 +611,22 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
     confirmDeleteGroupBtn.textContent = 'Eliminando...';
 
     try {
-        // 1. Limpieza de Tareas: Elimina todas las tareas del grupo
         const { error: taskErr } = await supabase.from('group_tasks').delete().eq('group_id', currentGroup.id);
         if (taskErr) throw taskErr;
 
-        // 2. Limpieza de Miembros: Elimina las relaciones en la tabla cruzada
         const { error: membersErr } = await supabase.from('group_members').delete().eq('group_id', currentGroup.id);
         if (membersErr) throw membersErr;
 
-        // 3. Borrado de la entidad raíz: Elimina el grupo definitivamente
         const { error: groupErr } = await supabase.from('groups').delete().eq('id', currentGroup.id);
         if (groupErr) throw groupErr;
 
         showToast('Grupo y todos sus datos eliminados por completo', 'success');
         deleteGroupModal.classList.add('hidden');
 
-        // Resetear la selección actual y ocultar panel de detalles
         currentGroup = null;
         groupDetailPanel.classList.add('hidden');
         noGroupSelectedPanel.classList.remove('hidden');
 
-        // Refrescar el árbol de grupos lateral
         loadGroups();
     } catch (err) {
         showToast('Error al eliminar el grupo: ' + err.message, 'error');
@@ -638,7 +649,6 @@ confirmKickBtn.addEventListener('click', async () => {
     confirmKickBtn.textContent = 'Expulsando...';
 
     try {
-        // Borra la relación usuario-grupo en Supabase
         const { error: kickErr } = await supabase
             .from('group_members')
             .delete()
@@ -650,7 +660,6 @@ confirmKickBtn.addEventListener('click', async () => {
         showToast('Miembro expulsado del grupo', 'success');
         kickMemberModal.classList.add('hidden');
 
-        // Recargamos los datos y refrescamos la interfaz al instante
         await loadGroupMembers(currentGroup);
         await loadGroupTasks();
         renderCurrentMembersList();

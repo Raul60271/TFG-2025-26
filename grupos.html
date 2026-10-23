@@ -78,12 +78,20 @@
                             </select>
                         </div>
 
-                        <div class="form-group" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                            <label class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px;">
-                                📎 Adjuntar archivo (opcional)
-                                <input type="file" id="group-task-file" style="display: none;">
-                            </label>
-                            <span id="group-file-name-preview" style="font-size: 13px; color: #666;">Ningún archivo...</span>
+                        <div class="form-group" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <label class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px;">
+                                    📎 Adjuntar archivo (opcional)
+                                    <input type="file" id="group-task-file" style="display: none;">
+                                </label>
+                                <span id="group-file-name-preview" style="font-size: 13px; color: #666;">Ningún archivo...</span>
+                            </div>
+                            <div>
+                                <label class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+                                    📅 
+                                    <input type="date" id="group-task-date" style="background: transparent; border: none; font-family: inherit; font-size: 13px; color: #333; cursor: pointer; outline: none;">
+                                </label>
+                            </div>
                         </div>
 
                         <button type="submit" id="add-group-task-btn" class="btn-primary">Añadir Tarea al Grupo</button>

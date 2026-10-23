@@ -44,10 +44,18 @@
                     <textarea id="task-desc" placeholder="Descripción (opcional)" rows="2"></textarea>
                 </div>
                 
-                <div class="form-group file-input-group">
-                    <label for="task-file" class="btn-secondary">📎 Adjuntar archivo (opcional)</label>
-                    <input type="file" id="task-file" class="hidden-file-input">
-                    <span id="file-name-display" class="file-name">Ningún archivo...</span>
+                <div class="form-group" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label for="task-file" class="btn-secondary" style="cursor: pointer;">📎 Adjuntar archivo (opcional)</label>
+                        <input type="file" id="task-file" class="hidden-file-input">
+                        <span id="file-name-display" class="file-name">Ningún archivo...</span>
+                    </div>
+                    <div>
+                        <label for="task-date" class="btn-secondary" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                            📅 
+                            <input type="date" id="task-date" style="background: transparent; border: none; font-family: inherit; font-size: 14px; color: #333; cursor: pointer; outline: none;">
+                        </label>
+                    </div>
                 </div>
                 
                 <button type="submit" class="btn-primary">Añadir Tarea</button>
