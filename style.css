@@ -363,3 +363,192 @@ body {
 .btn-danger:hover {
     background-color: #c82333;
 }
+
+/* --- NAVBAR FIJA SUPERIOR --- */
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    box-sizing: border-box;
+}
+
+/* Ajuste del cuerpo para compensar la altura de la navbar fija */
+.dashboard-body {
+    display: block;
+    padding-top: 70px; /* Altura exacta de la barra de navegación */
+    height: auto;
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+
+/* --- REJILLA DE 3 COLUMNAS PARA EL DASHBOARD --- */
+.dashboard-grid-layout {
+    display: grid;
+    grid-template-columns: 24.9% 50% 24.9%;
+    gap: 20px; /* Espacio simétrico y limpio entre columnas */
+    max-width: 1600px;
+    margin: 30px auto;
+    padding: 0 20px;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+/* Identificadores específicos para las áreas de contenido */
+#sidebar-calendar-area {
+    grid-column: 1 / 2; /* Primera columna: Calendario */
+}
+
+#main-content-area {
+    grid-column: 2 / 3; /* Segunda columna: Contenido principal (Formulario y Tareas) */
+}
+
+#right-margin-area {
+    grid-column: 3 / 4; /* Tercera columna: Margen simétrico de apoyo visual */
+}
+
+/* --- ADAPTABILIDAD RESPONSIVE (MÓVILES Y TABLETS) --- */
+@media (max-width: 1024px) {
+    .dashboard-grid-layout {
+        grid-template-columns: 1fr; /* Se apilan en una sola columna en pantallas estrechas */
+    }
+    #sidebar-calendar-area, #main-content-area, #right-margin-area {
+        grid-column: 1 / -1;
+    }
+}
+
+/* --- ESTILOS DEL MINI-CALENDARIO LATERAL --- */
+.calendar-card {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    position: sticky;
+    top: 90px; /* Se queda fijo de forma elegante al hacer scroll */
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.calendar-header h4 {
+    margin: 0;
+    font-size: 1.1em;
+    color: #333;
+    text-transform: capitalize;
+}
+
+.calendar-nav-btn {
+    background: #e2e6ea;
+    border: none;
+    border-radius: 4px;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    font-weight: bold;
+    color: #333;
+    transition: 0.2s;
+}
+
+.calendar-nav-btn:hover {
+    background-color: #d1d5d8;
+}
+
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    font-weight: 600;
+    font-size: 12px;
+    color: #777;
+    margin-bottom: 8px;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: #f8f9fa;
+    color: #333;
+    user-select: none;
+    position: relative;
+    transition: 0.15s ease;
+}
+
+.calendar-day:hover {
+    background-color: #e2e6ea;
+}
+
+.calendar-day.empty {
+    background-color: transparent;
+    cursor: default;
+}
+
+.calendar-day.today {
+    border: 2px solid #007bff;
+    font-weight: bold;
+}
+
+.calendar-day.selected {
+    background-color: #007bff !important;
+    color: white !important;
+}
+
+/* Indicador de que el día tiene tareas */
+.calendar-day.has-task::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    width: 4px;
+    height: 4px;
+    background-color: #28a745;
+    border-radius: 50%;
+}
+
+.calendar-day.selected.has-task::after {
+    background-color: white;
+}
+
+/* --- ESTILO PARA EL INPUT DEL AÑO EN EL CALENDARIO --- */
+#calendar-year-input {
+    border: 1px solid transparent;
+    background: transparent;
+    color: #333;
+    font-size: 1.1em;
+    font-weight: bold;
+    font-family: inherit;
+    width: 65px;
+    text-align: center;
+    border-radius: 4px;
+    transition: 0.2s;
+    cursor: pointer;
+    outline: none;
+}
+
+#calendar-year-input:hover, 
+#calendar-year-input:focus {
+    background-color: #e2e6ea;
+    border-color: #ccc;
+    cursor: text;
+}
+
+/* Ocultar las flechas incrementales por defecto en algunos navegadores para mayor limpieza visual (opcional) */
+#calendar-year-input::-webkit-inner-spin-button,
+#calendar-year-input::-webkit-outer-spin-button {
+    opacity: 0.5;
+}

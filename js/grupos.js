@@ -15,6 +15,16 @@ const selectedGroupName = document.getElementById('selected-group-name');
 const selectedGroupDesc = document.getElementById('selected-group-desc');
 const adminGroupActions = document.getElementById('admin-group-actions');
 
+// Referencias del Calendario Lateral de Grupos
+const calendarWrapperCard = document.getElementById('calendar-wrapper-card');
+const calendarGrid = document.getElementById('calendar-grid');
+const calendarMonthName = document.getElementById('calendar-month-name');
+const calendarYearInput = document.getElementById('calendar-year-input');
+const prevMonthBtn = document.getElementById('prev-month-btn');
+const nextMonthBtn = document.getElementById('next-month-btn');
+
+let currentCalendarDate = new Date();
+
 // Modal de eliminación de tareas
 const deleteModal = document.getElementById('delete-modal');
 const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
@@ -178,6 +188,11 @@ async function selectGroup(group) {
     noGroupSelectedPanel.classList.add('hidden');
     groupDetailPanel.classList.remove('hidden');
 
+    // Mostrar el calendario lateral al seleccionar grupo
+    if (calendarWrapperCard) {
+        calendarWrapperCard.classList.remove('hidden');
+    }
+
     selectedGroupName.textContent = `👥 ${group.name}`;
     selectedGroupDesc.textContent = group.description || 'Sin descripción disponible.';
 
@@ -196,6 +211,98 @@ async function selectGroup(group) {
 
     await loadGroupMembers(group);
     await loadGroupTasks();
+}
+
+// --- LÓGICA DEL MINI-CALENDARIO DE GRUPOS ---
+function renderGroupCalendar() {
+    if (!calendarGrid) return;
+    calendarGrid.innerHTML = '';
+
+    const year = currentCalendarDate.getFullYear();
+    const month = currentCalendarDate.getMonth();
+
+    const monthNames = [
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    
+    if (calendarMonthName) calendarMonthName.textContent = monthNames[month];
+    if (calendarYearInput && document.activeElement !== calendarYearInput) {
+        calendarYearInput.value = year;
+    }
+
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const adjustedFirstDay = (firstDayIndex === 0) ? 6 : firstDayIndex - 1;
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const selectedDateFilter = groupFilterDateInput ? groupFilterDateInput.value : '';
+
+    for (let i = 0; i < adjustedFirstDay; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'calendar-day empty';
+        calendarGrid.appendChild(emptyCell);
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+        const dayCell = document.createElement('div');
+        dayCell.className = 'calendar-day';
+
+        const formattedMonth = String(month + 1).padStart(2, '0');
+        const formattedDay = String(day).padStart(2, '0');
+        const dateString = `${year}-${formattedMonth}-${formattedDay}`;
+
+        dayCell.textContent = day;
+
+        if (dateString === todayStr) {
+            dayCell.classList.add('today');
+        }
+
+        if (dateString === selectedDateFilter) {
+            dayCell.classList.add('selected');
+        }
+
+        const hasTaskOnThisDay = allGroupTasks.some(task => task.due_date === dateString);
+        if (hasTaskOnThisDay) {
+            dayCell.classList.add('has-task');
+        }
+
+        dayCell.addEventListener('click', () => {
+            if (groupFilterDateInput.value === dateString) {
+                groupFilterDateInput.value = '';
+            } else {
+                groupFilterDateInput.value = dateString;
+            }
+            applyGroupFiltersAndRender();
+            renderGroupCalendar();
+        });
+
+        calendarGrid.appendChild(dayCell);
+    }
+}
+
+if (calendarYearInput) {
+    calendarYearInput.addEventListener('input', (e) => {
+        const typedYear = parseInt(e.target.value);
+        if (typedYear >= 1970 && typedYear <= 2100) {
+            currentCalendarDate.setFullYear(typedYear);
+            renderGroupCalendar();
+        }
+    });
+}
+
+if (prevMonthBtn) {
+    prevMonthBtn.addEventListener('click', () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+        renderGroupCalendar();
+    });
+}
+
+if (nextMonthBtn) {
+    nextMonthBtn.addEventListener('click', () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+        renderGroupCalendar();
+    });
 }
 
 // --- CARGAR MIEMBROS DEL GRUPO ---
@@ -250,6 +357,7 @@ async function loadGroupTasks() {
 
     allGroupTasks = tasks || [];
     applyGroupFiltersAndRender();
+    renderGroupCalendar(); // Renderizar calendario con las tareas del grupo
 }
 
 // Lógica de filtrado en cliente para grupos
@@ -442,7 +550,13 @@ function renderGroupTasks(tasks) {
 // --- EVENTOS DE FILTROS EN TIEMPO REAL PARA GRUPOS ---
 if (groupSearchTaskInput) groupSearchTaskInput.addEventListener('input', applyGroupFiltersAndRender);
 if (groupFilterFileSelect) groupFilterFileSelect.addEventListener('change', applyGroupFiltersAndRender);
-if (groupFilterDateInput) groupFilterDateInput.addEventListener('change', applyGroupFiltersAndRender);
+
+if (groupFilterDateInput) {
+    groupFilterDateInput.addEventListener('change', () => {
+        applyGroupFiltersAndRender();
+        renderGroupCalendar();
+    });
+}
 
 if (groupClearFiltersBtn) {
     groupClearFiltersBtn.addEventListener('click', () => {
@@ -450,6 +564,7 @@ if (groupClearFiltersBtn) {
         if (groupFilterFileSelect) groupFilterFileSelect.value = 'all';
         if (groupFilterDateInput) groupFilterDateInput.value = '';
         applyGroupFiltersAndRender();
+        renderGroupCalendar();
     });
 }
 
@@ -676,6 +791,11 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
         currentGroup = null;
         groupDetailPanel.classList.add('hidden');
         noGroupSelectedPanel.classList.remove('hidden');
+        
+        // Ocultar el calendario al deseleccionar el grupo
+        if (calendarWrapperCard) {
+            calendarWrapperCard.classList.add('hidden');
+        }
 
         loadGroups();
     } catch (err) {

@@ -15,11 +15,21 @@ const taskDateInput = document.getElementById('task-date');
 const fileNameDisplay = document.getElementById('file-name-display');
 const taskListContainer = document.getElementById('task-list');
 
-// Referencias de los nuevos filtros en tiempo real
+// Referencias de los filtros en tiempo real
 const searchTaskInput = document.getElementById('search-task');
 const filterFileSelect = document.getElementById('filter-file');
 const filterDateInput = document.getElementById('filter-date');
 const clearFiltersBtn = document.getElementById('clear-filters-btn');
+
+// Referencias del Calendario Lateral
+const calendarGrid = document.getElementById('calendar-grid');
+const calendarMonthName = document.getElementById('calendar-month-name');
+const calendarYearInput = document.getElementById('calendar-year-input');
+const prevMonthBtn = document.getElementById('prev-month-btn');
+const nextMonthBtn = document.getElementById('next-month-btn');
+
+// Estado actual del calendario (por defecto el mes y año actual)
+let currentCalendarDate = new Date();
 
 // Referencias del Modal de borrado
 const deleteModal = document.getElementById('delete-modal');
@@ -109,7 +119,7 @@ async function deleteFileFromStorage(fileUrl) {
     }
 }
 
-// --- 6. CARGAR TAREAS Y APLICAR FILTROS ---
+// --- 6. CARGAR TAREAS Y ACTUALIZAR VISTAS ---
 async function loadTasks(userId) {
     const { data: tasks, error } = await supabase
         .from('personal_tasks')
@@ -124,19 +134,113 @@ async function loadTasks(userId) {
     
     allTasks = tasks || [];
     applyFiltersAndRender();
+    renderCalendar(); // Renderizar el calendario con las tareas cargadas
 }
 
-// Función que procesa los filtros de búsqueda, archivo y fecha concreta
+// --- 7. LÓGICA DEL MINI-CALENDARIO INTERACTIVO ---
+function renderCalendar() {
+    if (!calendarGrid) return;
+    calendarGrid.innerHTML = '';
+
+    const year = currentCalendarDate.getFullYear();
+    const month = currentCalendarDate.getMonth();
+
+    const monthNames = [
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    
+    // Actualizar nombre del mes y valor del input de año
+    calendarMonthName.textContent = monthNames[month];
+    if (calendarYearInput && document.activeElement !== calendarYearInput) {
+        calendarYearInput.value = year;
+    }
+
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const adjustedFirstDay = (firstDayIndex === 0) ? 6 : firstDayIndex - 1;
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const selectedDateFilter = filterDateInput.value;
+
+    for (let i = 0; i < adjustedFirstDay; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'calendar-day empty';
+        calendarGrid.appendChild(emptyCell);
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+        const dayCell = document.createElement('div');
+        dayCell.className = 'calendar-day';
+
+        const formattedMonth = String(month + 1).padStart(2, '0');
+        const formattedDay = String(day).padStart(2, '0');
+        const dateString = `${year}-${formattedMonth}-${formattedDay}`;
+
+        dayCell.textContent = day;
+
+        if (dateString === todayStr) {
+            dayCell.classList.add('today');
+        }
+
+        if (dateString === selectedDateFilter) {
+            dayCell.classList.add('selected');
+        }
+
+        const hasTaskOnThisDay = allTasks.some(task => task.due_date === dateString);
+        if (hasTaskOnThisDay) {
+            dayCell.classList.add('has-task');
+        }
+
+        dayCell.addEventListener('click', () => {
+            if (filterDateInput.value === dateString) {
+                filterDateInput.value = '';
+            } else {
+                filterDateInput.value = dateString;
+            }
+            applyFiltersAndRender();
+            renderCalendar();
+        });
+
+        calendarGrid.appendChild(dayCell);
+    }
+}
+
+// Evento para cuando el usuario escribe o cambia el año en el input
+if (calendarYearInput) {
+    calendarYearInput.addEventListener('input', (e) => {
+        const typedYear = parseInt(e.target.value);
+        // Validar que sea un año razonable de 4 dígitos antes de actualizar
+        if (typedYear >= 1970 && typedYear <= 2100) {
+            currentCalendarDate.setFullYear(typedYear);
+            renderCalendar();
+        }
+    });
+}
+
+if (prevMonthBtn) {
+    prevMonthBtn.addEventListener('click', () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+        renderCalendar();
+    });
+}
+
+if (nextMonthBtn) {
+    nextMonthBtn.addEventListener('click', () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+        renderCalendar();
+    });
+}
+
+// --- 8. FILTRADO EN TIEMPO REAL ---
 function applyFiltersAndRender() {
     const searchTerm = searchTaskInput.value.toLowerCase().trim();
     const fileFilter = filterFileSelect.value;
     const dateFilter = filterDateInput.value;
 
     const filteredTasks = allTasks.filter(task => {
-        // A. Filtro por título (buscador de texto)
         const matchesTitle = task.title.toLowerCase().includes(searchTerm);
 
-        // B. Filtro por archivo adjunto
         let matchesFile = true;
         if (fileFilter === 'with') {
             matchesFile = Boolean(task.file_url);
@@ -144,7 +248,6 @@ function applyFiltersAndRender() {
             matchesFile = !task.file_url;
         }
 
-        // C. Filtro por fecha concreta exacta
         let matchesDate = true;
         if (dateFilter) {
             matchesDate = task.due_date === dateFilter;
@@ -212,7 +315,6 @@ function renderTasks(tasks) {
             </div>
         `;
 
-        // Eventos de la tarjeta
         const completeBtn = taskElement.querySelector('.complete-btn');
         completeBtn.addEventListener('click', () => toggleTaskCompletion(task.id, !task.is_completed));
 
@@ -230,19 +332,24 @@ function renderTasks(tasks) {
     });
 }
 
-// --- 7. EVENTOS DE LOS FILTROS EN TIEMPO REAL ---
+// --- 9. EVENTOS DE LOS FILTROS ---
 searchTaskInput.addEventListener('input', applyFiltersAndRender);
 filterFileSelect.addEventListener('change', applyFiltersAndRender);
-filterDateInput.addEventListener('change', applyFiltersAndRender);
+
+filterDateInput.addEventListener('change', () => {
+    applyFiltersAndRender();
+    renderCalendar(); // Actualizar selección visual en el calendario si se cambia desde el input fecha
+});
 
 clearFiltersBtn.addEventListener('click', () => {
     searchTaskInput.value = '';
     filterFileSelect.value = 'all';
     filterDateInput.value = '';
     applyFiltersAndRender();
+    renderCalendar();
 });
 
-// --- 8. CREAR NUEVA TAREA ---
+// --- 10. CREAR NUEVA TAREA ---
 createTaskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -310,7 +417,7 @@ createTaskForm.addEventListener('submit', async (e) => {
     submitBtn.disabled = false;
 });
 
-// --- 9. SUSTITUIR ARCHIVO ---
+// --- 11. SUSTITUIR ARCHIVO ---
 async function replaceTaskFile(taskId, oldFileUrl, newFile) {
     showToast('Subiendo nuevo archivo...', 'success');
 
@@ -356,7 +463,7 @@ async function replaceTaskFile(taskId, oldFileUrl, newFile) {
     }
 }
 
-// --- 10. COMPLETAR TAREA ---
+// --- 12. COMPLETAR TAREA ---
 async function toggleTaskCompletion(taskId, newStatus) {
     const { error } = await supabase
         .from('personal_tasks')
@@ -369,7 +476,7 @@ async function toggleTaskCompletion(taskId, newStatus) {
     }
 }
 
-// --- 11. BORRAR TAREA ---
+// --- 13. BORRAR TAREA ---
 function openDeleteModal(taskId, fileUrl) {
     taskToDeleteId = taskId;
     fileToDeleteUrl = fileUrl; 

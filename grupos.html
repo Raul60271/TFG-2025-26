@@ -32,114 +32,146 @@
         </div>
     </header>
 
-    <main class="dashboard-container">
+    <!-- NUEVO LAYOUT DE 3 COLUMNAS PARA GRUPOS -->
+    <main class="dashboard-grid-layout">
         
-        <section class="task-form-card" style="height: fit-content;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 10px;">
-                <h3 style="margin: 0;">Mis Grupos</h3>
-                <button id="open-group-modal-btn" class="btn-primary" style="padding: 8px 14px; font-size: 14px; width: auto;">➕ Crear Grupo</button>
-            </div>
-
-            <div id="groups-list" class="task-list">
-                <p class="empty-state">Cargando tus grupos...</p>
-            </div>
-        </section>
-
-        <section class="task-list-section">
-            <div id="group-detail-panel" class="hidden">
-                
-                <div style="border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; flex-wrap: wrap;">
-                        <div>
-                            <h2 id="selected-group-name" style="color: #007bff; margin: 0 0 5px 0;">👥 Nombre del Grupo</h2>
-                            <p id="selected-group-desc" style="color: #666; margin: 0;">Descripción del grupo...</p>
-                        </div>
-                        <div id="admin-group-actions" class="hidden" style="display: flex; gap: 10px;">
-                            <button id="open-edit-group-btn" class="btn-secondary" style="padding: 6px 12px; font-size: 13px;">✏️ Editar Grupo</button>
-                            <button id="open-add-member-btn" class="btn-primary" style="padding: 6px 12px; font-size: 13px; width: auto;">👤 Editar Miembros</button>
-                            <button id="open-delete-group-btn" class="btn-danger" style="padding: 6px 12px; font-size: 13px; width: auto; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️ Eliminar Grupo</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="task-form-card" style="margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                    <h4 style="margin-top: 0; margin-bottom: 15px; color: #333;">Nueva Tarea de Grupo</h4>
-                    <form id="group-task-form">
-                        <div class="form-group">
-                            <input type="text" id="group-task-title" required placeholder="Nombre de la tarea...">
-                        </div>
-                        <div class="form-group">
-                            <textarea id="group-task-desc" placeholder="Descripción (opcional)" rows="2" style="width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; resize: vertical;"></textarea>
-                        </div>
-                        
-                        <div class="form-group" id="assignee-block" style="margin-bottom: 15px;">
-                            <label for="group-task-assignee" style="font-size: 13px; font-weight: bold; color: #555; display: block; margin-bottom: 5px;">Asignar a:</label>
-                            <select id="group-task-assignee" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit;">
-                            </select>
-                        </div>
-
-                        <div class="form-group" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <label class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px;">
-                                    📎 Adjuntar archivo (opcional)
-                                    <input type="file" id="group-task-file" style="display: none;">
-                                </label>
-                                <span id="group-file-name-preview" style="font-size: 13px; color: #666;">Ningún archivo...</span>
-                            </div>
-                            <div>
-                                <label class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
-                                    📅 
-                                    <input type="date" id="group-task-date" style="background: transparent; border: none; font-family: inherit; font-size: 13px; color: #333; cursor: pointer; outline: none;">
-                                </label>
-                            </div>
-                        </div>
-
-                        <button type="submit" id="add-group-task-btn" class="btn-primary">Añadir Tarea al Grupo</button>
-                    </form>
-                </div>
-
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap;">
-                    <h3 style="margin: 0; font-size: 1.3em;">Tareas del Grupo</h3>
+        <!-- COLUMNA 1: Calendario Lateral (Oculto por defecto hasta que se seleccione un grupo) -->
+        <aside id="sidebar-calendar-area">
+            <div id="calendar-wrapper-card" class="calendar-card hidden">
+                <div class="calendar-header">
+                    <button id="prev-month-btn" class="calendar-nav-btn" title="Mes anterior">‹</button>
                     
-                    <!-- Contenedor unificado de filtros en grupos -->
-                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <span id="calendar-month-name" style="font-size: 1.1em; font-weight: bold; color: #333;">Cargando...</span>
+                        <input type="number" id="calendar-year-input" min="2000" max="2100" title="Haz clic para escribir o cambiar el año">
+                    </div>
+
+                    <button id="next-month-btn" class="calendar-nav-btn" title="Mes siguiente">›</button>
+                </div>
+                <div class="calendar-weekdays">
+                    <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
+                </div>
+                <div id="calendar-grid" class="calendar-grid">
+                    <!-- Días renderizados dinámicamente -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- COLUMNA 2: Contenido Principal (Detalles del Grupo, Formulario y Tareas) -->
+        <section id="main-content-area">
+            
+            <div class="task-list-section" style="margin-top: 0;">
+                <div id="group-detail-panel" class="hidden">
+                    
+                    <div style="border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; flex-wrap: wrap;">
+                            <div>
+                                <h2 id="selected-group-name" style="color: #007bff; margin: 0 0 5px 0;">👥 Nombre del Grupo</h2>
+                                <p id="selected-group-desc" style="color: #666; margin: 0;">Descripción del grupo...</p>
+                            </div>
+                            <div id="admin-group-actions" class="hidden" style="display: flex; gap: 10px;">
+                                <button id="open-edit-group-btn" class="btn-secondary" style="padding: 6px 12px; font-size: 13px;">✏️ Editar Grupo</button>
+                                <button id="open-add-member-btn" class="btn-primary" style="padding: 6px 12px; font-size: 13px; width: auto;">👤 Editar Miembros</button>
+                                <button id="open-delete-group-btn" class="btn-danger" style="padding: 6px 12px; font-size: 13px; width: auto; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️ Eliminar Grupo</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="task-form-card" style="margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                        <h4 style="margin-top: 0; margin-bottom: 15px; color: #333;">Nueva Tarea de Grupo</h4>
+                        <form id="group-task-form">
+                            <div class="form-group">
+                                <input type="text" id="group-task-title" required placeholder="Nombre de la tarea...">
+                            </div>
+                            <div class="form-group">
+                                <textarea id="group-task-desc" placeholder="Descripción (opcional)" rows="2" style="width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; resize: vertical;"></textarea>
+                            </div>
+                            
+                            <div class="form-group" id="assignee-block" style="margin-bottom: 15px;">
+                                <label for="group-task-assignee" style="font-size: 13px; font-weight: bold; color: #555; display: block; margin-bottom: 5px;">Asignar a:</label>
+                                <select id="group-task-assignee" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit;">
+                                </select>
+                            </div>
+
+                            <div class="form-group" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <label class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px;">
+                                        📎 Adjuntar archivo (opcional)
+                                        <input type="file" id="group-task-file" style="display: none;">
+                                    </label>
+                                    <span id="group-file-name-preview" style="font-size: 13px; color: #666;">Ningún archivo...</span>
+                                </div>
+                                <div>
+                                    <label class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+                                        📅 
+                                        <input type="date" id="group-task-date" style="background: transparent; border: none; font-family: inherit; font-size: 13px; color: #333; cursor: pointer; outline: none;">
+                                    </label>
+                                </div>
+                            </div>
+
+                            <button type="submit" id="add-group-task-btn" class="btn-primary">Añadir Tarea al Grupo</button>
+                        </form>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap;">
+                        <h3 style="margin: 0; font-size: 1.3em;">Tareas del Grupo</h3>
                         
-                        <!-- 1. Buscador -->
-                        <input type="text" id="group-search-task" class="btn-secondary" placeholder="🔍 Buscar tarea..." style="padding: 6px 12px; border: none; font-size: 13px; outline: none; font-family: inherit; height: 35px; box-sizing: border-box; width: 160px; color: #333;">
-                        
-                        <!-- 2. Filtro de Archivo -->
-                        <select id="group-filter-file" class="btn-secondary" style="padding: 6px 10px; border: none; font-size: 13px; outline: none; cursor: pointer; font-family: inherit; height: 35px; box-sizing: border-box; color: #333;">
-                            <option value="all" style="background: #fff; color: #333;">📎 Archivos (Todos)</option>
-                            <option value="with" style="background: #fff; color: #333;">Con archivo</option>
-                            <option value="without" style="background: #fff; color: #333;">Sin archivo</option>
-                        </select>
+                        <!-- Contenedor unificado de filtros en grupos -->
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            
+                            <!-- 1. Buscador -->
+                            <input type="text" id="group-search-task" class="btn-secondary" placeholder="🔍 Buscar tarea..." style="padding: 6px 12px; border: none; font-size: 13px; outline: none; font-family: inherit; height: 35px; box-sizing: border-box; width: 160px; color: #333;">
+                            
+                            <!-- 2. Filtro de Archivo -->
+                            <select id="group-filter-file" class="btn-secondary" style="padding: 6px 10px; border: none; font-size: 13px; outline: none; cursor: pointer; font-family: inherit; height: 35px; box-sizing: border-box; color: #333;">
+                                <option value="all" style="background: #fff; color: #333;">📎 Archivos (Todos)</option>
+                                <option value="with" style="background: #fff; color: #333;">Con archivo</option>
+                                <option value="without" style="background: #fff; color: #333;">Sin archivo</option>
+                            </select>
 
-                        <!-- 3. Selector de Fecha Concreta -->
-                        <label class="btn-secondary" style="cursor: pointer; padding: 6px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; height: 35px; box-sizing: border-box; margin: 0; border-radius: 4px;" title="Filtrar por fecha concreta">
-                            📅 
-                            <input type="date" id="group-filter-date" style="background: transparent; border: none; font-family: inherit; font-size: 13px; color: #333; cursor: pointer; outline: none;">
-                        </label>
+                            <!-- 3. Selector de Fecha Concreta -->
+                            <label class="btn-secondary" style="cursor: pointer; padding: 6px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; height: 35px; box-sizing: border-box; margin: 0; border-radius: 4px;" title="Filtrar por fecha concreta">
+                                📅 
+                                <input type="date" id="group-filter-date" style="background: transparent; border: none; font-family: inherit; font-size: 13px; color: #333; cursor: pointer; outline: none;">
+                            </label>
 
-                        <!-- 4. Botón Limpiar -->
-                        <button id="group-clear-filters-btn" class="btn-secondary" style="padding: 6px 14px; font-size: 13px; border: none; cursor: pointer; height: 35px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px; border-radius: 4px;" title="Limpiar filtros">
-                            ❌ Limpiar
-                        </button>
+                            <!-- 4. Botón Limpiar -->
+                            <button id="group-clear-filters-btn" class="btn-secondary" style="padding: 6px 14px; font-size: 13px; border: none; cursor: pointer; height: 35px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px; border-radius: 4px;" title="Limpiar filtros">
+                                ❌ Limpiar
+                            </button>
 
+                        </div>
+                    </div>
+
+                    <div id="group-tasks-list" class="task-list">
+                        <p class="empty-state">No hay tareas creadas en este grupo.</p>
                     </div>
                 </div>
+                
+                <div id="no-group-selected">
+                    <h3>Detalles del Grupo</h3>
+                    <div class="task-list" style="text-align: center; padding: 60px 20px;">
+                        <p class="empty-state" style="font-size: 16px;">👥 Selecciona un grupo de la lista para gestionar sus tareas y miembros.</p>
+                    </div>
+                </div>
+            </div>
 
-                <div id="group-tasks-list" class="task-list">
-                    <p class="empty-state">No hay tareas creadas en este grupo.</p>
-                </div>
-            </div>
-            
-            <div id="no-group-selected">
-                <h3>Detalles del Grupo</h3>
-                <div class="task-list" style="text-align: center; padding: 60px 20px;">
-                    <p class="empty-state" style="font-size: 16px;">👥 Selecciona un grupo de la lista para gestionar sus tareas y miembros.</p>
-                </div>
-            </div>
         </section>
+
+        <!-- COLUMNA 3: Mis Grupos (Movido a la derecha como se solicitó) -->
+        <aside id="right-margin-area">
+            <section class="task-form-card" style="height: fit-content; position: sticky; top: 90px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 10px;">
+                    <h3 style="margin: 0; font-size: 1.2em;">Mis Grupos</h3>
+                    <button id="open-group-modal-btn" class="btn-primary" style="padding: 6px 12px; font-size: 13px; width: auto;">➕ Crear Grupo</button>
+                </div>
+
+                <div id="groups-list" class="task-list">
+                    <p class="empty-state">Cargando tus grupos...</p>
+                </div>
+            </section>
+        </aside>
+
     </main>
 
     <div id="create-group-modal" class="modal-overlay hidden">
