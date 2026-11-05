@@ -1,5 +1,22 @@
 import { supabase } from './supabase.js';
 
+// --- MAPEO DE COLORES PREESTABLECIDOS ---
+const TASK_COLORS = {
+    blanco: { bg: '#ffffff', text: '#333333', border: '#cccccc' },
+    negro: { bg: '#212529', text: '#ffffff', border: '#111416' },
+    gris: { bg: '#6c757d', text: '#ffffff', border: '#545b62' },
+    marron: { bg: '#854d0e', text: '#ffffff', border: '#713f12' },
+    rojo: { bg: '#dc3545', text: '#ffffff', border: '#bd2130' },
+    naranja: { bg: '#fd7e14', text: '#ffffff', border: '#e86a02' },
+    amarillo: { bg: '#ffc107', text: '#212529', border: '#d39e00' },
+    verde: { bg: '#28a745', text: '#ffffff', border: '#1e7e34' },
+    'verde oscuro': { bg: '#155724', text: '#ffffff', border: '#0f3d19' },
+    azul: { bg: '#007bff', text: '#ffffff', border: '#0056b3' },
+    'azul oscuro': { bg: '#004085', text: '#ffffff', border: '#002752' },
+    morado: { bg: '#6f42c1', text: '#ffffff', border: '#59339d' },
+    rosa: { bg: '#e83e8c', text: '#ffffff', border: '#d91a72' }
+};
+
 // --- REFERENCIAS HTML ---
 const userNameSpan = document.getElementById('user-name');
 const logoutBtn = document.getElementById('logout-btn');
@@ -28,7 +45,6 @@ const calendarYearInput = document.getElementById('calendar-year-input');
 const prevMonthBtn = document.getElementById('prev-month-btn');
 const nextMonthBtn = document.getElementById('next-month-btn');
 
-// Estado actual del calendario (por defecto el mes y año actual)
 let currentCalendarDate = new Date();
 
 // Referencias del Modal de borrado
@@ -38,7 +54,6 @@ const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
 let taskToDeleteId = null; 
 let fileToDeleteUrl = null; 
 
-// Almacén global para las tareas descargadas y filtrado en cliente
 let allTasks = [];
 
 // --- SISTEMA DE NOTIFICACIONES ---
@@ -46,6 +61,104 @@ function showToast(message, type) {
     toastNotification.textContent = message;
     toastNotification.className = `toast show ${type}`;
     setTimeout(() => { toastNotification.classList.remove('show'); }, 3000);
+}
+
+// --- RENDERIZAR MENÚS DESPLEGABLES DE COLOR ---
+function initColorPickers() {
+    // 1. Desplegable en formulario de creación
+    const taskTrigger = document.getElementById('task-color-trigger');
+    const taskDropdown = document.getElementById('task-color-dropdown');
+    const taskInput = document.getElementById('task-color-value');
+    const taskPreviewSwatch = document.getElementById('task-color-preview-swatch');
+    const taskPreviewText = document.getElementById('task-color-preview-text');
+
+    if (taskTrigger && taskDropdown && taskInput) {
+        taskDropdown.innerHTML = '';
+        Object.keys(TASK_COLORS).forEach(colorName => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `color-swatch-btn ${colorName === 'blanco' ? 'selected' : ''}`;
+            btn.style.backgroundColor = TASK_COLORS[colorName].bg;
+            if (colorName === 'blanco' || colorName === 'amarillo') {
+                btn.style.border = '1px solid #adb5bd';
+            }
+            btn.title = colorName.charAt(0).toUpperCase() + colorName.slice(1);
+            
+            btn.addEventListener('click', () => {
+                taskDropdown.querySelectorAll('.color-swatch-btn').forEach(s => s.classList.remove('selected'));
+                btn.classList.add('selected');
+                taskInput.value = colorName;
+                
+                // Actualizar vista previa del botón principal
+                taskPreviewSwatch.style.backgroundColor = TASK_COLORS[colorName].bg;
+                taskPreviewText.textContent = colorName.charAt(0).toUpperCase() + colorName.slice(1);
+                taskDropdown.classList.add('hidden');
+            });
+            taskDropdown.appendChild(btn);
+        });
+
+        taskTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (filterDropdown) filterDropdown.classList.add('hidden');
+            taskDropdown.classList.toggle('hidden');
+        });
+    }
+
+    // 2. Desplegable en barra de filtros
+    const filterTrigger = document.getElementById('filter-color-trigger');
+    const filterDropdown = document.getElementById('filter-color-dropdown');
+    const filterInput = document.getElementById('filter-color-value');
+    const filterPreviewText = document.getElementById('filter-color-preview-text');
+
+    if (filterTrigger && filterDropdown && filterInput) {
+        filterDropdown.innerHTML = '';
+        
+        // Opción "Todos" dentro del desplegable de filtro
+        const allBtn = document.createElement('div');
+        allBtn.textContent = '🎨 Colores (Todos)';
+        allBtn.style.cssText = 'grid-column: 1 / -1; padding: 6px; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; background: #f1f3f5; border-radius: 4px; margin-bottom: 4px; color: #333;';
+        allBtn.addEventListener('click', () => {
+            filterDropdown.querySelectorAll('.color-swatch-btn').forEach(s => s.classList.remove('selected'));
+            filterInput.value = 'all';
+            filterPreviewText.textContent = '🎨 Colores (Todos)';
+            filterDropdown.classList.add('hidden');
+            applyFiltersAndRender();
+        });
+        filterDropdown.appendChild(allBtn);
+
+        Object.keys(TASK_COLORS).forEach(colorName => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'color-swatch-btn';
+            btn.style.backgroundColor = TASK_COLORS[colorName].bg;
+            if (colorName === 'blanco' || colorName === 'amarillo') {
+                btn.style.border = '1px solid #adb5bd';
+            }
+            btn.title = colorName.charAt(0).toUpperCase() + colorName.slice(1);
+            
+            btn.addEventListener('click', () => {
+                filterDropdown.querySelectorAll('.color-swatch-btn').forEach(s => s.classList.remove('selected'));
+                btn.classList.add('selected');
+                filterInput.value = colorName;
+                filterPreviewText.textContent = `🎨 ${colorName.charAt(0).toUpperCase() + colorName.slice(1)}`;
+                filterDropdown.classList.add('hidden');
+                applyFiltersAndRender();
+            });
+            filterDropdown.appendChild(btn);
+        });
+
+        filterTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (taskDropdown) taskDropdown.classList.add('hidden');
+            filterDropdown.classList.toggle('hidden');
+        });
+    }
+
+    // Cerrar desplegables al hacer clic fuera
+    document.addEventListener('click', () => {
+        if (taskDropdown) taskDropdown.classList.add('hidden');
+        if (filterDropdown) filterDropdown.classList.add('hidden');
+    });
 }
 
 // --- 1. VERIFICAR SESIÓN Y CARGAR PERFIL ---
@@ -82,7 +195,7 @@ async function checkAuthAndLoadProfile() {
     return userId; 
 }
 
-// --- 2. FUNCIONAMIENTO DEL MENÚ DESPLEGABLE ---
+// --- 2. MENÚ DESPLEGABLE ---
 profileTrigger.addEventListener('click', () => {
     profileDropdown.classList.toggle('hidden');
 });
@@ -100,7 +213,7 @@ logoutBtn.addEventListener('click', async (e) => {
     if (!error) window.location.href = 'index.html';
 });
 
-// --- 4. ACTUALIZAR NOMBRE DE ARCHIVO EN LA INTERFAZ ---
+// --- 4. ACTUALIZAR NOMBRE DE ARCHIVO ---
 taskFileInput.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
         fileNameDisplay.textContent = e.target.files[0].name;
@@ -109,7 +222,7 @@ taskFileInput.addEventListener('change', (e) => {
     }
 });
 
-// --- 5. FUNCIÓN AUXILIAR PARA BORRAR ARCHIVOS DE STORAGE ---
+// --- 5. BORRAR ARCHIVO DE STORAGE ---
 async function deleteFileFromStorage(fileUrl) {
     if (!fileUrl) return;
     const urlParts = fileUrl.split('/task_files/');
@@ -119,7 +232,7 @@ async function deleteFileFromStorage(fileUrl) {
     }
 }
 
-// --- 6. CARGAR TAREAS Y ACTUALIZAR VISTAS ---
+// --- 6. CARGAR TAREAS ---
 async function loadTasks(userId) {
     const { data: tasks, error } = await supabase
         .from('personal_tasks')
@@ -134,10 +247,10 @@ async function loadTasks(userId) {
     
     allTasks = tasks || [];
     applyFiltersAndRender();
-    renderCalendar(); // Renderizar el calendario con las tareas cargadas
+    renderCalendar();
 }
 
-// --- 7. LÓGICA DEL MINI-CALENDARIO INTERACTIVO ---
+// --- 7. MINI-CALENDARIO ---
 function renderCalendar() {
     if (!calendarGrid) return;
     calendarGrid.innerHTML = '';
@@ -150,7 +263,6 @@ function renderCalendar() {
         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
     ];
     
-    // Actualizar nombre del mes y valor del input de año
     calendarMonthName.textContent = monthNames[month];
     if (calendarYearInput && document.activeElement !== calendarYearInput) {
         calendarYearInput.value = year;
@@ -206,11 +318,9 @@ function renderCalendar() {
     }
 }
 
-// Evento para cuando el usuario escribe o cambia el año en el input
 if (calendarYearInput) {
     calendarYearInput.addEventListener('input', (e) => {
         const typedYear = parseInt(e.target.value);
-        // Validar que sea un año razonable de 4 dígitos antes de actualizar
         if (typedYear >= 1970 && typedYear <= 2100) {
             currentCalendarDate.setFullYear(typedYear);
             renderCalendar();
@@ -232,10 +342,12 @@ if (nextMonthBtn) {
     });
 }
 
-// --- 8. FILTRADO EN TIEMPO REAL ---
+// --- 8. FILTRADO ---
 function applyFiltersAndRender() {
     const searchTerm = searchTaskInput.value.toLowerCase().trim();
     const fileFilter = filterFileSelect.value;
+    const colorFilterInput = document.getElementById('filter-color-value');
+    const colorFilter = colorFilterInput ? colorFilterInput.value : 'all';
     const dateFilter = filterDateInput.value;
 
     const filteredTasks = allTasks.filter(task => {
@@ -248,12 +360,15 @@ function applyFiltersAndRender() {
             matchesFile = !task.file_url;
         }
 
+        const taskColorValue = task.color || 'blanco';
+        const matchesColor = (colorFilter === 'all') || (taskColorValue === colorFilter);
+
         let matchesDate = true;
         if (dateFilter) {
             matchesDate = task.due_date === dateFilter;
         }
 
-        return matchesTitle && matchesFile && matchesDate;
+        return matchesTitle && matchesFile && matchesColor && matchesDate;
     });
 
     renderTasks(filteredTasks);
@@ -273,12 +388,20 @@ function renderTasks(tasks) {
         const taskElement = document.createElement('div');
         taskElement.className = `task-item ${task.is_completed ? 'completed' : ''}`;
         
+        // Aplicar colores dinámicos
+        const colorKey = task.color || 'blanco';
+        const styleConfig = TASK_COLORS[colorKey] || TASK_COLORS['blanco'];
+        
+        taskElement.style.backgroundColor = styleConfig.bg;
+        taskElement.style.color = styleConfig.text;
+        taskElement.style.borderLeft = `4px solid ${styleConfig.border}`;
+
         let dueDateMarkup = '';
         if (task.due_date) {
             const isOverdue = task.due_date < todayStr && !task.is_completed;
             const dateStyle = isOverdue 
                 ? 'background: #ffe6e6; color: #dc3545; border: 1px solid #f5c6cb;' 
-                : 'background: #f1f3f5; color: #495057; border: 1px solid #dee2e6;';
+                : 'background: rgba(0,0,0,0.05); color: inherit; border: 1px solid rgba(0,0,0,0.1);';
             
             dueDateMarkup = `
                 <span style="font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; ${dateStyle}" title="${isOverdue ? '¡Fecha límite vencida!' : 'Fecha límite'}">
@@ -288,30 +411,30 @@ function renderTasks(tasks) {
         }
 
         taskElement.innerHTML = `
-            <div class="task-content">
+            <div class="task-content" style="color: inherit;">
                 <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px;">
-                    <h4 class="task-title" style="margin: 0;">${task.title}</h4>
+                    <h4 class="task-title" style="margin: 0; color: inherit;">${task.title}</h4>
                     ${dueDateMarkup}
                 </div>
-                ${task.description ? `<p>${task.description}</p>` : ''}
+                ${task.description ? `<p style="color: inherit; opacity: 0.85;">${task.description}</p>` : ''}
                 ${task.file_url ? `
                     <div style="margin-top: 8px;">
-                        <a href="${task.file_url}" target="_blank" style="font-size: 13px; color: #007bff; text-decoration: none;">
+                        <a href="${task.file_url}" target="_blank" style="font-size: 13px; color: inherit; text-decoration: underline; opacity: 0.9;">
                             📎 Descargar: ${task.file_name}
                         </a>
                     </div>
                 ` : ''}
             </div>
             <div class="task-actions">
-                <label class="btn-icon" title="${task.file_url ? 'Sustituir archivo' : 'Añadir archivo'}" style="cursor:pointer;">
+                <label class="btn-icon" title="${task.file_url ? 'Sustituir archivo' : 'Añadir archivo'}" style="cursor:pointer; color: inherit;">
                     🔄
                     <input type="file" class="hidden-replace-input" style="display:none;">
                 </label>
                 
-                <button class="btn-icon complete-btn" title="${task.is_completed ? 'Desmarcar' : 'Completar'}">
+                <button class="btn-icon complete-btn" title="${task.is_completed ? 'Desmarcar' : 'Completar'}" style="color: inherit;">
                     ${task.is_completed ? '✅' : '⬜'}
                 </button>
-                <button class="btn-icon delete-btn" title="Borrar">🗑️</button>
+                <button class="btn-icon delete-btn" title="Borrar" style="color: inherit;">🗑️</button>
             </div>
         `;
 
@@ -332,18 +455,26 @@ function renderTasks(tasks) {
     });
 }
 
-// --- 9. EVENTOS DE LOS FILTROS ---
+// --- 9. EVENTOS DE FILTROS ---
 searchTaskInput.addEventListener('input', applyFiltersAndRender);
 filterFileSelect.addEventListener('change', applyFiltersAndRender);
 
 filterDateInput.addEventListener('change', () => {
     applyFiltersAndRender();
-    renderCalendar(); // Actualizar selección visual en el calendario si se cambia desde el input fecha
+    renderCalendar();
 });
 
 clearFiltersBtn.addEventListener('click', () => {
     searchTaskInput.value = '';
     filterFileSelect.value = 'all';
+    
+    // Resetear desplegable de color del filtro
+    const filterColorInput = document.getElementById('filter-color-value');
+    if (filterColorInput) filterColorInput.value = 'all';
+    const filterPreviewText = document.getElementById('filter-color-preview-text');
+    if (filterPreviewText) filterPreviewText.textContent = '🎨 Colores (Todos)';
+    document.querySelectorAll('#filter-color-dropdown .color-swatch-btn').forEach(s => s.classList.remove('selected'));
+
     filterDateInput.value = '';
     applyFiltersAndRender();
     renderCalendar();
@@ -363,6 +494,8 @@ createTaskForm.addEventListener('submit', async (e) => {
 
     const title = taskTitleInput.value;
     const description = taskDescInput.value;
+    const taskColorInput = document.getElementById('task-color-value');
+    const taskColor = taskColorInput ? taskColorInput.value : 'blanco';
     const dueDate = taskDateInput.value || null;
     const file = taskFileInput.files[0];
 
@@ -399,6 +532,7 @@ createTaskForm.addEventListener('submit', async (e) => {
             user_id: session.user.id, 
             title: title, 
             description: description || null,
+            color: taskColor,
             due_date: dueDate,
             file_url: fileUrl,
             file_name: fileName
@@ -410,6 +544,15 @@ createTaskForm.addEventListener('submit', async (e) => {
         showToast('Tarea añadida con éxito', 'success');
         createTaskForm.reset();
         fileNameDisplay.textContent = 'Ningún archivo...'; 
+        
+        // Reiniciar selector de color de creación a blanco por defecto
+        if (taskColorInput) taskColorInput.value = 'blanco';
+        const taskPreviewSwatch = document.getElementById('task-color-preview-swatch');
+        const taskPreviewText = document.getElementById('task-color-preview-text');
+        if (taskPreviewSwatch) taskPreviewSwatch.style.backgroundColor = '#ffffff';
+        if (taskPreviewText) taskPreviewText.textContent = 'Blanco';
+        initColorPickers();
+
         loadTasks(session.user.id);
     }
 
@@ -516,6 +659,7 @@ confirmDeleteBtn.addEventListener('click', async () => {
 
 // --- INICIALIZACIÓN ---
 window.addEventListener('DOMContentLoaded', async () => {
+    initColorPickers();
     const userId = await checkAuthAndLoadProfile();
     if (userId) {
         loadTasks(userId);

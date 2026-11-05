@@ -41,7 +41,6 @@
                 <div class="calendar-header">
                     <button id="prev-month-btn" class="calendar-nav-btn" title="Mes anterior">‹</button>
                     
-                    <!-- Cabecera modificada con mes estático y año editable -->
                     <div style="display: flex; align-items: center; gap: 4px;">
                         <span id="calendar-month-name" style="font-size: 1.1em; font-weight: bold; color: #333;">Cargando...</span>
                         <input type="number" id="calendar-year-input" min="2000" max="2100" title="Haz clic para escribir o cambiar el año">
@@ -77,6 +76,18 @@
                             <input type="file" id="task-file" class="hidden-file-input">
                             <span id="file-name-display" class="file-name">Ningún archivo...</span>
                         </div>
+                        <!-- EN EL FORMULARIO DE CREACIÓN -->
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <label style="font-size: 13px; font-weight: bold; color: #555;">🎨 Color:</label>
+                            <div class="color-dropdown-wrapper">
+                                <button type="button" id="task-color-trigger" class="btn-secondary" style="display: flex; align-items: center; gap: 8px; height: 35px; box-sizing: border-box; cursor: pointer;">
+                                    <span id="task-color-preview-swatch" style="width: 16px; height: 16px; border-radius: 3px; background-color: #ffffff; border: 1px solid #ccc; display: inline-block;"></span>
+                                    <span id="task-color-preview-text">Blanco</span> ▾
+                                </button>
+                            <div id="task-color-dropdown" class="color-dropdown-content hidden"></div>
+                            <input type="hidden" id="task-color-value" value="blanco">
+                        </div>
+                    </div>
                         <div>
                             <label for="task-date" class="btn-secondary" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
                                 📅 
@@ -94,13 +105,22 @@
                     <h3 style="margin: 0; font-size: 1.3em;">Mis Tareas</h3>
                     
                     <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <input type="text" id="search-task" class="btn-secondary" placeholder="🔍 Buscar tarea..." style="padding: 6px 12px; border: none; font-size: 13px; outline: none; font-family: inherit; height: 35px; box-sizing: border-box; width: 160px; color: #333;">
+                        <input type="text" id="search-task" class="btn-secondary" placeholder="🔍 Buscar tarea..." style="padding: 6px 12px; border: none; font-size: 13px; outline: none; font-family: inherit; height: 35px; box-sizing: border-box; width: 140px; color: #333;">
                         
                         <select id="filter-file" class="btn-secondary" style="padding: 6px 10px; border: none; font-size: 13px; outline: none; cursor: pointer; font-family: inherit; height: 35px; box-sizing: border-box; color: #333;">
                             <option value="all" style="background: #fff; color: #333;">📎 Archivos (Todos)</option>
                             <option value="with" style="background: #fff; color: #333;">Con archivo</option>
                             <option value="without" style="background: #fff; color: #333;">Sin archivo</option>
                         </select>
+
+                        <!-- EN LA BARRA DE FILTROS -->
+                        <div class="color-dropdown-wrapper">
+                            <button type="button" id="filter-color-trigger" class="btn-secondary" style="display: flex; align-items: center; gap: 8px; height: 35px; box-sizing: border-box; cursor: pointer;">
+                                <span id="filter-color-preview-text">🎨 Colores (Todos)</span> ▾
+                            </button>
+                            <div id="filter-color-dropdown" class="color-dropdown-content hidden" style="width: 150px;"></div>
+                            <input type="hidden" id="filter-color-value" value="all">
+                        </div>
 
                         <label class="btn-secondary" style="cursor: pointer; padding: 6px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; height: 35px; box-sizing: border-box; margin: 0; border-radius: 4px;" title="Filtrar por fecha concreta">
                             📅 

@@ -101,6 +101,18 @@
                                     </label>
                                     <span id="group-file-name-preview" style="font-size: 13px; color: #666;">Ningún archivo...</span>
                                 </div>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <label style="font-size: 13px; font-weight: bold; color: #555;">🎨 Color:</label>
+                                    <!-- Menú desplegable flotante de colores para creación en grupos -->
+                                    <div class="color-dropdown-wrapper">
+                                        <button type="button" id="group-task-color-trigger" class="btn-secondary" style="display: flex; align-items: center; gap: 8px; height: 35px; box-sizing: border-box; cursor: pointer;">
+                                            <span id="group-task-color-preview-swatch" style="width: 16px; height: 16px; border-radius: 3px; background-color: #ffffff; border: 1px solid #ccc; display: inline-block;"></span>
+                                            <span id="group-task-color-preview-text">Blanco</span> ▾
+                                        </button>
+                                        <div id="group-task-color-dropdown" class="color-dropdown-content hidden"></div>
+                                        <input type="hidden" id="group-task-color-value" value="blanco">
+                                    </div>
+                                </div>
                                 <div>
                                     <label class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
                                         📅 
@@ -120,7 +132,7 @@
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                             
                             <!-- 1. Buscador -->
-                            <input type="text" id="group-search-task" class="btn-secondary" placeholder="🔍 Buscar tarea..." style="padding: 6px 12px; border: none; font-size: 13px; outline: none; font-family: inherit; height: 35px; box-sizing: border-box; width: 160px; color: #333;">
+                            <input type="text" id="group-search-task" class="btn-secondary" placeholder="🔍 Buscar tarea..." style="padding: 6px 12px; border: none; font-size: 13px; outline: none; font-family: inherit; height: 35px; box-sizing: border-box; width: 140px; color: #333;">
                             
                             <!-- 2. Filtro de Archivo -->
                             <select id="group-filter-file" class="btn-secondary" style="padding: 6px 10px; border: none; font-size: 13px; outline: none; cursor: pointer; font-family: inherit; height: 35px; box-sizing: border-box; color: #333;">
@@ -129,13 +141,22 @@
                                 <option value="without" style="background: #fff; color: #333;">Sin archivo</option>
                             </select>
 
-                            <!-- 3. Selector de Fecha Concreta -->
+                            <!-- 3. Filtro desplegable de Colores -->
+                            <div class="color-dropdown-wrapper">
+                                <button type="button" id="group-filter-color-trigger" class="btn-secondary" style="display: flex; align-items: center; gap: 8px; height: 35px; box-sizing: border-box; cursor: pointer;">
+                                    <span id="group-filter-color-preview-text">🎨 Colores (Todos)</span> ▾
+                                </button>
+                                <div id="group-filter-color-dropdown" class="color-dropdown-content hidden" style="width: 150px;"></div>
+                                <input type="hidden" id="group-filter-color-value" value="all">
+                            </div>
+
+                            <!-- 4. Selector de Fecha Concreta -->
                             <label class="btn-secondary" style="cursor: pointer; padding: 6px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; height: 35px; box-sizing: border-box; margin: 0; border-radius: 4px;" title="Filtrar por fecha concreta">
                                 📅 
                                 <input type="date" id="group-filter-date" style="background: transparent; border: none; font-family: inherit; font-size: 13px; color: #333; cursor: pointer; outline: none;">
                             </label>
 
-                            <!-- 4. Botón Limpiar -->
+                            <!-- 5. Botón Limpiar -->
                             <button id="group-clear-filters-btn" class="btn-secondary" style="padding: 6px 14px; font-size: 13px; border: none; cursor: pointer; height: 35px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px; border-radius: 4px;" title="Limpiar filtros">
                                 ❌ Limpiar
                             </button>

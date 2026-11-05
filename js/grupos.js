@@ -1,5 +1,22 @@
 import { supabase } from './supabase.js';
 
+// --- MAPEO DE COLORES PREESTABLECIDOS ---
+const TASK_COLORS = {
+    blanco: { bg: '#ffffff', text: '#333333', border: '#cccccc' },
+    negro: { bg: '#212529', text: '#ffffff', border: '#111416' },
+    gris: { bg: '#6c757d', text: '#ffffff', border: '#545b62' },
+    marron: { bg: '#854d0e', text: '#ffffff', border: '#713f12' },
+    rojo: { bg: '#dc3545', text: '#ffffff', border: '#bd2130' },
+    naranja: { bg: '#fd7e14', text: '#ffffff', border: '#e86a02' },
+    amarillo: { bg: '#ffc107', text: '#212529', border: '#d39e00' },
+    verde: { bg: '#28a745', text: '#ffffff', border: '#1e7e34' },
+    'verde oscuro': { bg: '#155724', text: '#ffffff', border: '#0f3d19' },
+    azul: { bg: '#007bff', text: '#ffffff', border: '#0056b3' },
+    'azul oscuro': { bg: '#004085', text: '#ffffff', border: '#002752' },
+    morado: { bg: '#6f42c1', text: '#ffffff', border: '#59339d' },
+    rosa: { bg: '#e83e8c', text: '#ffffff', border: '#d91a72' }
+};
+
 // --- REFERENCIAS HTML GENERALES ---
 const userNameSpan = document.getElementById('user-name');
 const logoutBtn = document.getElementById('logout-btn');
@@ -85,13 +102,109 @@ const currentMembersList = document.getElementById('current-members-list');
 let currentUserId = null;
 let currentGroup = null; 
 let currentGroupMembers = []; 
-let allGroupTasks = []; // Almacén local de tareas del grupo activo
+let allGroupTasks = []; 
 
 // --- NOTIFICACIONES TOAST ---
 function showToast(message, type) {
     toastNotification.textContent = message;
     toastNotification.className = `toast show ${type}`;
     setTimeout(() => { toastNotification.classList.remove('show'); }, 3500);
+}
+
+// --- RENDERIZAR MENÚS DESPLEGABLES DE COLOR EN GRUPOS ---
+function initGroupColorPickers() {
+    // 1. Desplegable en formulario de creación de tareas de grupo
+    const groupTaskTrigger = document.getElementById('group-task-color-trigger');
+    const groupTaskDropdown = document.getElementById('group-task-color-dropdown');
+    const groupTaskInput = document.getElementById('group-task-color-value');
+    const groupTaskPreviewSwatch = document.getElementById('group-task-color-preview-swatch');
+    const groupTaskPreviewText = document.getElementById('group-task-color-preview-text');
+
+    if (groupTaskTrigger && groupTaskDropdown && groupTaskInput) {
+        groupTaskDropdown.innerHTML = '';
+        Object.keys(TASK_COLORS).forEach(colorName => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `color-swatch-btn ${colorName === 'blanco' ? 'selected' : ''}`;
+            btn.style.backgroundColor = TASK_COLORS[colorName].bg;
+            if (colorName === 'blanco' || colorName === 'amarillo') {
+                btn.style.border = '1px solid #adb5bd';
+            }
+            btn.title = colorName.charAt(0).toUpperCase() + colorName.slice(1);
+            
+            btn.addEventListener('click', () => {
+                groupTaskDropdown.querySelectorAll('.color-swatch-btn').forEach(s => s.classList.remove('selected'));
+                btn.classList.add('selected');
+                groupTaskInput.value = colorName;
+                
+                groupTaskPreviewSwatch.style.backgroundColor = TASK_COLORS[colorName].bg;
+                groupTaskPreviewText.textContent = colorName.charAt(0).toUpperCase() + colorName.slice(1);
+                groupTaskDropdown.classList.add('hidden');
+            });
+            groupTaskDropdown.appendChild(btn);
+        });
+
+        groupTaskTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (groupFilterDropdown) groupFilterDropdown.classList.add('hidden');
+            groupTaskDropdown.classList.toggle('hidden');
+        });
+    }
+
+    // 2. Desplegable en barra de filtros de grupo
+    const groupFilterTrigger = document.getElementById('group-filter-color-trigger');
+    const groupFilterDropdown = document.getElementById('group-filter-color-dropdown');
+    const groupFilterInput = document.getElementById('group-filter-color-value');
+    const groupFilterPreviewText = document.getElementById('group-filter-color-preview-text');
+
+    if (groupFilterTrigger && groupFilterDropdown && groupFilterInput) {
+        groupFilterDropdown.innerHTML = '';
+        
+        const allBtn = document.createElement('div');
+        allBtn.textContent = '🎨 Colores (Todos)';
+        allBtn.style.cssText = 'grid-column: 1 / -1; padding: 6px; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; background: #f1f3f5; border-radius: 4px; margin-bottom: 4px; color: #333;';
+        allBtn.addEventListener('click', () => {
+            groupFilterDropdown.querySelectorAll('.color-swatch-btn').forEach(s => s.classList.remove('selected'));
+            groupFilterInput.value = 'all';
+            groupFilterPreviewText.textContent = '🎨 Colores (Todos)';
+            groupFilterDropdown.classList.add('hidden');
+            applyGroupFiltersAndRender();
+        });
+        groupFilterDropdown.appendChild(allBtn);
+
+        Object.keys(TASK_COLORS).forEach(colorName => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'color-swatch-btn';
+            btn.style.backgroundColor = TASK_COLORS[colorName].bg;
+            if (colorName === 'blanco' || colorName === 'amarillo') {
+                btn.style.border = '1px solid #adb5bd';
+            }
+            btn.title = colorName.charAt(0).toUpperCase() + colorName.slice(1);
+            
+            btn.addEventListener('click', () => {
+                groupFilterDropdown.querySelectorAll('.color-swatch-btn').forEach(s => s.classList.remove('selected'));
+                btn.classList.add('selected');
+                groupFilterInput.value = colorName;
+                groupFilterPreviewText.textContent = `🎨 ${colorName.charAt(0).toUpperCase() + colorName.slice(1)}`;
+                groupFilterDropdown.classList.add('hidden');
+                applyGroupFiltersAndRender();
+            });
+            groupFilterDropdown.appendChild(btn);
+        });
+
+        groupFilterTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (groupTaskDropdown) groupTaskDropdown.classList.add('hidden');
+            groupFilterDropdown.classList.toggle('hidden');
+        });
+    }
+
+    // Cerrar desplegables al hacer clic fuera
+    document.addEventListener('click', () => {
+        if (groupTaskDropdown) groupTaskDropdown.classList.add('hidden');
+        if (groupFilterDropdown) groupFilterDropdown.classList.add('hidden');
+    });
 }
 
 // --- VERIFICAR AUTENTICACIÓN ---
@@ -188,7 +301,6 @@ async function selectGroup(group) {
     noGroupSelectedPanel.classList.add('hidden');
     groupDetailPanel.classList.remove('hidden');
 
-    // Mostrar el calendario lateral al seleccionar grupo
     if (calendarWrapperCard) {
         calendarWrapperCard.classList.remove('hidden');
     }
@@ -204,9 +316,16 @@ async function selectGroup(group) {
         adminGroupActions.style.display = 'none';
     }
 
-    // Resetear valores de filtros al cambiar de grupo
     if (groupSearchTaskInput) groupSearchTaskInput.value = '';
     if (groupFilterFileSelect) groupFilterFileSelect.value = 'all';
+    
+    // Resetear desplegable de filtro de color en selección
+    const filterColorInput = document.getElementById('group-filter-color-value');
+    if (filterColorInput) filterColorInput.value = 'all';
+    const filterPreviewText = document.getElementById('group-filter-color-preview-text');
+    if (filterPreviewText) filterPreviewText.textContent = '🎨 Colores (Todos)';
+    document.querySelectorAll('#group-filter-color-dropdown .color-swatch-btn').forEach(s => s.classList.remove('selected'));
+
     if (groupFilterDateInput) groupFilterDateInput.value = '';
 
     await loadGroupMembers(group);
@@ -357,13 +476,17 @@ async function loadGroupTasks() {
 
     allGroupTasks = tasks || [];
     applyGroupFiltersAndRender();
-    renderGroupCalendar(); // Renderizar calendario con las tareas del grupo
+    renderGroupCalendar(); 
 }
 
 // Lógica de filtrado en cliente para grupos
 function applyGroupFiltersAndRender() {
     const searchTerm = groupSearchTaskInput ? groupSearchTaskInput.value.toLowerCase().trim() : '';
     const fileFilter = groupFilterFileSelect ? groupFilterFileSelect.value : 'all';
+    
+    const filterColorInput = document.getElementById('group-filter-color-value');
+    const colorFilter = filterColorInput ? filterColorInput.value : 'all';
+    
     const dateFilter = groupFilterDateInput ? groupFilterDateInput.value : '';
 
     const filteredTasks = allGroupTasks.filter(task => {
@@ -376,12 +499,15 @@ function applyGroupFiltersAndRender() {
             matchesFile = !task.file_url;
         }
 
+        const taskColorValue = task.color || 'blanco';
+        const matchesColor = (colorFilter === 'all') || (taskColorValue === colorFilter);
+
         let matchesDate = true;
         if (dateFilter) {
             matchesDate = task.due_date === dateFilter;
         }
 
-        return matchesTitle && matchesFile && matchesDate;
+        return matchesTitle && matchesFile && matchesColor && matchesDate;
     });
 
     renderGroupTasks(filteredTasks);
@@ -403,6 +529,14 @@ function renderGroupTasks(tasks) {
         const item = document.createElement('div');
         item.className = `task-item ${task.is_completed ? 'completed' : ''}`;
 
+        // Aplicar colores dinámicos
+        const colorKey = task.color || 'blanco';
+        const styleConfig = TASK_COLORS[colorKey] || TASK_COLORS['blanco'];
+        
+        item.style.backgroundColor = styleConfig.bg;
+        item.style.color = styleConfig.text;
+        item.style.borderLeft = `4px solid ${styleConfig.border}`;
+
         const assigneeUser = currentGroupMembers.find(m => m.id === task.assigned_to);
         const assigneeName = assigneeUser ? assigneeUser.username : 'No asignado';
 
@@ -411,7 +545,7 @@ function renderGroupTasks(tasks) {
             const isOverdue = task.due_date < todayStr && !task.is_completed;
             const dateStyle = isOverdue 
                 ? 'background: #ffe6e6; color: #dc3545; border: 1px solid #f5c6cb;' 
-                : 'background: #f1f3f5; color: #495057; border: 1px solid #dee2e6;';
+                : 'background: rgba(0,0,0,0.05); color: inherit; border: 1px solid rgba(0,0,0,0.1);';
             
             dueDateMarkup = `
                 <span style="font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; ${dateStyle}" title="${isOverdue ? '¡Fecha límite vencida!' : 'Fecha límite'}">
@@ -423,9 +557,9 @@ function renderGroupTasks(tasks) {
         let assigneeElementMarkup = '';
         if (isAdmin) {
             assigneeElementMarkup = `
-                <select class="change-assignee-select" title="Cambiar destinatario de la tarea" style="background: #e6f2ff; border: 1px solid #b3d7ff; color: #007bff; font-size: 12px; padding: 3px 8px; border-radius: 4px; font-weight: 500; cursor: pointer; font-family: inherit; outline: none; border-style: solid;">
+                <select class="change-assignee-select" title="Cambiar destinatario de la tarea" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.2); color: inherit; font-size: 12px; padding: 3px 8px; border-radius: 4px; font-weight: 500; cursor: pointer; font-family: inherit; outline: none;">
                     ${currentGroupMembers.map(m => `
-                        <option value="${m.id}" ${m.id === task.assigned_to ? 'selected' : ''}>
+                        <option value="${m.id}" ${m.id === task.assigned_to ? 'selected' : ''} style="background: #fff; color: #333;">
                             👤 Destinado: ${m.username} ${m.id === currentUserId ? '(Tú)' : ''}
                         </option>
                     `).join('')}
@@ -433,26 +567,26 @@ function renderGroupTasks(tasks) {
             `;
         } else {
             assigneeElementMarkup = `
-                <button class="btn-icon-assignee" style="background: #e6f2ff; border: 1px solid #b3d7ff; color: #007bff; font-size: 12px; padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 500; cursor: default; border-style: solid;">
+                <button class="btn-icon-assignee" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.2); color: inherit; font-size: 12px; padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 500; cursor: default;">
                     👤 Destinado: <strong>${assigneeName}</strong>
                 </button>
             `;
         }
 
         item.innerHTML = `
-            <div class="task-content">
+            <div class="task-content" style="color: inherit;">
                 <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px;">
-                    <h4 class="task-title" style="margin: 0;">${task.title}</h4>
+                    <h4 class="task-title" style="margin: 0; color: inherit;">${task.title}</h4>
                     ${dueDateMarkup}
                 </div>
-                ${task.description ? `<p>${task.description}</p>` : ''}
+                ${task.description ? `<p style="color: inherit; opacity: 0.85;">${task.description}</p>` : ''}
                 
                 <div style="margin-top: 8px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
                     ${assigneeElementMarkup}
                     
                     ${task.file_url ? `
                         <div>
-                            <a href="${task.file_url}" target="_blank" style="font-size: 13px; color: #007bff; text-decoration: none;">
+                            <a href="${task.file_url}" target="_blank" style="font-size: 13px; color: inherit; text-decoration: underline; opacity: 0.9;">
                                 📎 Descargar: ${task.file_name}
                             </a>
                         </div>
@@ -462,18 +596,18 @@ function renderGroupTasks(tasks) {
             
             <div class="task-actions">
                 ${canModify ? `
-                    <label class="btn-icon" title="${task.file_url ? 'Sustituir archivo' : 'Añadir archivo'}" style="cursor:pointer;">
+                    <label class="btn-icon" title="${task.file_url ? 'Sustituir archivo' : 'Añadir archivo'}" style="cursor:pointer; color: inherit;">
                         🔄
                         <input type="file" class="replace-file-input" style="display:none;">
                     </label>
                 ` : ''}
                 
-                <button class="btn-icon complete-btn" title="${task.is_completed ? 'Desmarcar' : 'Completar'}" ${!canModify ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
+                <button class="btn-icon complete-btn" title="${task.is_completed ? 'Desmarcar' : 'Completar'}" style="color: inherit;" ${!canModify ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
                     ${task.is_completed ? '✅' : '⬜'}
                 </button>
                 
                 ${isAdmin || canModify ? `
-                    <button class="btn-icon delete-task-btn" title="Borrar">🗑️</button>
+                    <button class="btn-icon delete-task-btn" title="Borrar" style="color: inherit;">🗑️</button>
                 ` : ''}
             </div>
         `;
@@ -562,6 +696,14 @@ if (groupClearFiltersBtn) {
     groupClearFiltersBtn.addEventListener('click', () => {
         if (groupSearchTaskInput) groupSearchTaskInput.value = '';
         if (groupFilterFileSelect) groupFilterFileSelect.value = 'all';
+        
+        // Resetear desplegable de color en grupos
+        const filterColorInput = document.getElementById('group-filter-color-value');
+        if (filterColorInput) filterColorInput.value = 'all';
+        const filterPreviewText = document.getElementById('group-filter-color-preview-text');
+        if (filterPreviewText) filterPreviewText.textContent = '🎨 Colores (Todos)';
+        document.querySelectorAll('#group-filter-color-dropdown .color-swatch-btn').forEach(s => s.classList.remove('selected'));
+
         if (groupFilterDateInput) groupFilterDateInput.value = '';
         applyGroupFiltersAndRender();
         renderGroupCalendar();
@@ -577,6 +719,10 @@ groupTaskForm.addEventListener('submit', async (e) => {
     const title = groupTaskTitle.value.trim();
     const description = groupTaskDesc.value.trim();
     const assignedTo = groupTaskAssignee.value; 
+    
+    const taskColorInput = document.getElementById('group-task-color-value');
+    const taskColor = taskColorInput ? taskColorInput.value : 'blanco';
+    
     const dueDate = groupTaskDateInput.value || null;
     const file = groupTaskFile.files[0];
 
@@ -601,6 +747,7 @@ groupTaskForm.addEventListener('submit', async (e) => {
             description: description || null,
             assigned_to: assignedTo,
             created_by: currentUserId,
+            color: taskColor,
             file_url: fileUrl,
             file_name: fileNameStr,
             due_date: dueDate,
@@ -612,6 +759,15 @@ groupTaskForm.addEventListener('submit', async (e) => {
         showToast('¡Tarea añadida con éxito!', 'success');
         groupTaskForm.reset();
         groupFileNamePreview.textContent = 'Ningún archivo...';
+        
+        // Reiniciar selector desplegable de color de creación de grupo a blanco
+        if (taskColorInput) taskColorInput.value = 'blanco';
+        const groupTaskPreviewSwatch = document.getElementById('group-task-color-preview-swatch');
+        const groupTaskPreviewText = document.getElementById('group-task-color-preview-text');
+        if (groupTaskPreviewSwatch) groupTaskPreviewSwatch.style.backgroundColor = '#ffffff';
+        if (groupTaskPreviewText) groupTaskPreviewText.textContent = 'Blanco';
+        initGroupColorPickers();
+
         loadGroupTasks();
     } catch (err) { showToast(err.message, 'error'); }
     finally {
@@ -792,7 +948,6 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
         groupDetailPanel.classList.add('hidden');
         noGroupSelectedPanel.classList.remove('hidden');
         
-        // Ocultar el calendario al deseleccionar el grupo
         if (calendarWrapperCard) {
             calendarWrapperCard.classList.add('hidden');
         }
@@ -843,6 +998,7 @@ confirmKickBtn.addEventListener('click', async () => {
 
 // --- INICIALIZACIÓN ---
 window.addEventListener('DOMContentLoaded', async () => {
+    initGroupColorPickers();
     const uId = await checkAuthAndLoadProfile();
     if (uId) loadGroups();
 });
