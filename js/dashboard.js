@@ -38,6 +38,31 @@ const filterFileSelect = document.getElementById('filter-file');
 const filterDateInput = document.getElementById('filter-date');
 const clearFiltersBtn = document.getElementById('clear-filters-btn');
 
+// Referencias de Etiquetas (Desplegables y Modales)
+const taskTagTrigger = document.getElementById('task-tag-trigger');
+const taskTagDropdown = document.getElementById('task-tag-dropdown');
+const taskTagInput = document.getElementById('task-tag-value');
+const taskTagPreviewDot = document.getElementById('task-tag-preview-dot');
+const taskTagPreviewText = document.getElementById('task-tag-preview-text');
+
+const filterTagTrigger = document.getElementById('filter-tag-trigger');
+const filterTagDropdown = document.getElementById('filter-tag-dropdown');
+const filterTagInput = document.getElementById('filter-tag-value');
+const filterTagPreviewText = document.getElementById('filter-tag-preview-text');
+
+const createTagModal = document.getElementById('create-tag-modal');
+const createTagForm = document.getElementById('create-tag-form');
+const newTagNameInput = document.getElementById('new-tag-name');
+const newTagColorGrid = document.getElementById('new-tag-color-grid');
+const newTagColorInput = document.getElementById('new-tag-color-value');
+const cancelCreateTagBtn = document.getElementById('cancel-create-tag-btn');
+const saveNewTagBtn = document.getElementById('save-new-tag-btn');
+
+const deleteTagModal = document.getElementById('delete-tag-modal');
+const confirmDeleteTagBtn = document.getElementById('confirm-delete-tag-btn');
+const cancelDeleteTagBtn = document.getElementById('cancel-delete-tag-btn');
+let tagToDeleteId = null;
+
 // Referencias del Calendario Lateral
 const calendarGrid = document.getElementById('calendar-grid');
 const calendarMonthName = document.getElementById('calendar-month-name');
@@ -47,14 +72,16 @@ const nextMonthBtn = document.getElementById('next-month-btn');
 
 let currentCalendarDate = new Date();
 
-// Referencias del Modal de borrado
+// Referencias del Modal de borrado de tareas
 const deleteModal = document.getElementById('delete-modal');
 const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
 const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
 let taskToDeleteId = null; 
 let fileToDeleteUrl = null; 
 
+let currentUserId = null;
 let allTasks = [];
+let userTags = [];
 
 // --- SISTEMA DE NOTIFICACIONES ---
 function showToast(message, type) {
@@ -63,103 +90,306 @@ function showToast(message, type) {
     setTimeout(() => { toastNotification.classList.remove('show'); }, 3000);
 }
 
-// --- RENDERIZAR MENÚS DESPLEGABLES DE COLOR ---
-function initColorPickers() {
-    // 1. Desplegable en formulario de creación
-    const taskTrigger = document.getElementById('task-color-trigger');
-    const taskDropdown = document.getElementById('task-color-dropdown');
-    const taskInput = document.getElementById('task-color-value');
-    const taskPreviewSwatch = document.getElementById('task-color-preview-swatch');
-    const taskPreviewText = document.getElementById('task-color-preview-text');
+// --- INICIALIZAR PALETA DE COLORES EN EL MODAL DE NUEVA ETIQUETA ---
+function initNewTagColorGrid() {
+    if (!newTagColorGrid) return;
+    newTagColorGrid.innerHTML = '';
 
-    if (taskTrigger && taskDropdown && taskInput) {
-        taskDropdown.innerHTML = '';
-        Object.keys(TASK_COLORS).forEach(colorName => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = `color-swatch-btn ${colorName === 'blanco' ? 'selected' : ''}`;
-            btn.style.backgroundColor = TASK_COLORS[colorName].bg;
-            if (colorName === 'blanco' || colorName === 'amarillo') {
-                btn.style.border = '1px solid #adb5bd';
-            }
-            btn.title = colorName.charAt(0).toUpperCase() + colorName.slice(1);
-            
-            btn.addEventListener('click', () => {
-                taskDropdown.querySelectorAll('.color-swatch-btn').forEach(s => s.classList.remove('selected'));
-                btn.classList.add('selected');
-                taskInput.value = colorName;
-                
-                // Actualizar vista previa del botón principal
-                taskPreviewSwatch.style.backgroundColor = TASK_COLORS[colorName].bg;
-                taskPreviewText.textContent = colorName.charAt(0).toUpperCase() + colorName.slice(1);
-                taskDropdown.classList.add('hidden');
-            });
-            taskDropdown.appendChild(btn);
+    Object.keys(TASK_COLORS).forEach(colorName => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `color-swatch-btn ${colorName === 'azul' ? 'selected' : ''}`;
+        btn.style.backgroundColor = TASK_COLORS[colorName].bg;
+        if (colorName === 'blanco' || colorName === 'amarillo') {
+            btn.style.border = '1px solid #adb5bd';
+        }
+        btn.title = colorName.charAt(0).toUpperCase() + colorName.slice(1);
+
+        btn.addEventListener('click', () => {
+            newTagColorGrid.querySelectorAll('.color-swatch-btn').forEach(s => s.classList.remove('selected'));
+            btn.classList.add('selected');
+            newTagColorInput.value = colorName;
         });
 
-        taskTrigger.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (filterDropdown) filterDropdown.classList.add('hidden');
-            taskDropdown.classList.toggle('hidden');
-        });
-    }
-
-    // 2. Desplegable en barra de filtros
-    const filterTrigger = document.getElementById('filter-color-trigger');
-    const filterDropdown = document.getElementById('filter-color-dropdown');
-    const filterInput = document.getElementById('filter-color-value');
-    const filterPreviewText = document.getElementById('filter-color-preview-text');
-
-    if (filterTrigger && filterDropdown && filterInput) {
-        filterDropdown.innerHTML = '';
-        
-        // Opción "Todos" dentro del desplegable de filtro
-        const allBtn = document.createElement('div');
-        allBtn.textContent = '🎨 Colores (Todos)';
-        allBtn.style.cssText = 'grid-column: 1 / -1; padding: 6px; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; background: #f1f3f5; border-radius: 4px; margin-bottom: 4px; color: #333;';
-        allBtn.addEventListener('click', () => {
-            filterDropdown.querySelectorAll('.color-swatch-btn').forEach(s => s.classList.remove('selected'));
-            filterInput.value = 'all';
-            filterPreviewText.textContent = '🎨 Colores (Todos)';
-            filterDropdown.classList.add('hidden');
-            applyFiltersAndRender();
-        });
-        filterDropdown.appendChild(allBtn);
-
-        Object.keys(TASK_COLORS).forEach(colorName => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'color-swatch-btn';
-            btn.style.backgroundColor = TASK_COLORS[colorName].bg;
-            if (colorName === 'blanco' || colorName === 'amarillo') {
-                btn.style.border = '1px solid #adb5bd';
-            }
-            btn.title = colorName.charAt(0).toUpperCase() + colorName.slice(1);
-            
-            btn.addEventListener('click', () => {
-                filterDropdown.querySelectorAll('.color-swatch-btn').forEach(s => s.classList.remove('selected'));
-                btn.classList.add('selected');
-                filterInput.value = colorName;
-                filterPreviewText.textContent = `🎨 ${colorName.charAt(0).toUpperCase() + colorName.slice(1)}`;
-                filterDropdown.classList.add('hidden');
-                applyFiltersAndRender();
-            });
-            filterDropdown.appendChild(btn);
-        });
-
-        filterTrigger.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (taskDropdown) taskDropdown.classList.add('hidden');
-            filterDropdown.classList.toggle('hidden');
-        });
-    }
-
-    // Cerrar desplegables al hacer clic fuera
-    document.addEventListener('click', () => {
-        if (taskDropdown) taskDropdown.classList.add('hidden');
-        if (filterDropdown) filterDropdown.classList.add('hidden');
+        newTagColorGrid.appendChild(btn);
     });
 }
+
+// --- CARGAR ETIQUETAS DEL USUARIO ---
+async function loadUserTags(userId) {
+    const { data, error } = await supabase
+        .from('tags')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+
+    if (error) {
+        showToast('Error al cargar etiquetas', 'error');
+        return;
+    }
+
+    userTags = data || [];
+    renderTagDropdowns();
+}
+
+// --- RENDERIZAR MENÚS DESPLEGABLES DE ETIQUETAS ---
+function renderTagDropdowns() {
+    // 1. Desplegable en el formulario de creación de tarea
+    if (taskTagDropdown) {
+        taskTagDropdown.innerHTML = '';
+
+        // Botón superior para crear etiqueta nueva
+        const addNewBtn = document.createElement('button');
+        addNewBtn.type = 'button';
+        addNewBtn.className = 'tag-add-new-btn';
+        addNewBtn.innerHTML = '➕ Añadir nueva etiqueta';
+        addNewBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            taskTagDropdown.classList.add('hidden');
+            openCreateTagModal();
+        });
+        taskTagDropdown.appendChild(addNewBtn);
+
+        // Opción neutra: Sin etiqueta
+        const noneItem = document.createElement('button');
+        noneItem.type = 'button';
+        noneItem.className = `tag-option-item ${taskTagInput.value === '' ? 'selected' : ''}`;
+        noneItem.innerHTML = `
+            <span class="tag-color-dot" style="background-color: #ffffff; border: 1px solid #ccc;"></span>
+            <span>Sin etiqueta</span>
+        `;
+        noneItem.addEventListener('click', () => {
+            selectCreationTag(null);
+            taskTagDropdown.classList.add('hidden');
+        });
+        taskTagDropdown.appendChild(noneItem);
+
+        // Listado de etiquetas del usuario con botón pequeño de eliminar
+        userTags.forEach(tag => {
+            const colorStyle = TASK_COLORS[tag.color] || TASK_COLORS['blanco'];
+            
+            const row = document.createElement('div');
+            row.className = `tag-option-row ${taskTagInput.value === tag.id ? 'selected' : ''}`;
+
+            const itemBtn = document.createElement('button');
+            itemBtn.type = 'button';
+            itemBtn.className = 'tag-option-item';
+            itemBtn.innerHTML = `
+                <span class="tag-color-dot" style="background-color: ${colorStyle.bg}; border: 1px solid ${colorStyle.border};"></span>
+                <span>${tag.name}</span>
+            `;
+            itemBtn.addEventListener('click', () => {
+                selectCreationTag(tag);
+                taskTagDropdown.classList.add('hidden');
+            });
+
+            const deleteTagBtn = document.createElement('button');
+            deleteTagBtn.type = 'button';
+            deleteTagBtn.className = 'tag-delete-btn';
+            deleteTagBtn.title = 'Eliminar etiqueta';
+            deleteTagBtn.textContent = '🗑️';
+            deleteTagBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                taskTagDropdown.classList.add('hidden');
+                openDeleteTagModal(tag.id);
+            });
+
+            row.appendChild(itemBtn);
+            row.appendChild(deleteTagBtn);
+            taskTagDropdown.appendChild(row);
+        });
+    }
+
+    // 2. Desplegable en la barra de filtros
+    if (filterTagDropdown) {
+        filterTagDropdown.innerHTML = '';
+
+        // Opción: Todas las etiquetas
+        const allItem = document.createElement('button');
+        allItem.type = 'button';
+        allItem.className = `tag-option-item ${filterTagInput.value === 'all' ? 'selected' : ''}`;
+        allItem.innerHTML = `<span>🏷️ Etiquetas (Todas)</span>`;
+        allItem.addEventListener('click', () => {
+            filterTagInput.value = 'all';
+            filterTagPreviewText.textContent = '🏷️ Etiquetas (Todas)';
+            filterTagDropdown.classList.add('hidden');
+            renderTagDropdowns();
+            applyFiltersAndRender();
+        });
+        filterTagDropdown.appendChild(allItem);
+
+        // Opción: Sin etiqueta
+        const untaggedItem = document.createElement('button');
+        untaggedItem.type = 'button';
+        untaggedItem.className = `tag-option-item ${filterTagInput.value === 'none' ? 'selected' : ''}`;
+        untaggedItem.innerHTML = `
+            <span class="tag-color-dot" style="background-color: #ffffff; border: 1px solid #ccc;"></span>
+            <span>Sin etiqueta</span>
+        `;
+        untaggedItem.addEventListener('click', () => {
+            filterTagInput.value = 'none';
+            filterTagPreviewText.textContent = '🏷️ Sin etiqueta';
+            filterTagDropdown.classList.add('hidden');
+            renderTagDropdowns();
+            applyFiltersAndRender();
+        });
+        filterTagDropdown.appendChild(untaggedItem);
+
+        // Listado de etiquetas propias del usuario
+        userTags.forEach(tag => {
+            const colorStyle = TASK_COLORS[tag.color] || TASK_COLORS['blanco'];
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = `tag-option-item ${filterTagInput.value === tag.id ? 'selected' : ''}`;
+            item.innerHTML = `
+                <span class="tag-color-dot" style="background-color: ${colorStyle.bg}; border: 1px solid ${colorStyle.border};"></span>
+                <span>${tag.name}</span>
+            `;
+            item.addEventListener('click', () => {
+                filterTagInput.value = tag.id;
+                filterTagPreviewText.textContent = `🏷️ ${tag.name}`;
+                filterTagDropdown.classList.add('hidden');
+                renderTagDropdowns();
+                applyFiltersAndRender();
+            });
+            filterTagDropdown.appendChild(item);
+        });
+    }
+}
+
+function selectCreationTag(tag) {
+    if (!tag) {
+        taskTagInput.value = '';
+        taskTagPreviewDot.style.backgroundColor = '#ffffff';
+        taskTagPreviewDot.style.border = '1px solid #ccc';
+        taskTagPreviewText.textContent = 'Sin etiqueta';
+    } else {
+        const colorStyle = TASK_COLORS[tag.color] || TASK_COLORS['blanco'];
+        taskTagInput.value = tag.id;
+        taskTagPreviewDot.style.backgroundColor = colorStyle.bg;
+        taskTagPreviewDot.style.border = `1px solid ${colorStyle.border}`;
+        taskTagPreviewText.textContent = tag.name;
+    }
+    renderTagDropdowns();
+}
+
+// Eventos de apertura/cierre de los desplegables de etiquetas
+if (taskTagTrigger) {
+    taskTagTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (filterTagDropdown) filterTagDropdown.classList.add('hidden');
+        taskTagDropdown.classList.toggle('hidden');
+    });
+}
+
+if (filterTagTrigger) {
+    filterTagTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (taskTagDropdown) taskTagDropdown.classList.add('hidden');
+        filterTagDropdown.classList.toggle('hidden');
+    });
+}
+
+document.addEventListener('click', () => {
+    if (taskTagDropdown) taskTagDropdown.classList.add('hidden');
+    if (filterTagDropdown) filterTagDropdown.classList.add('hidden');
+});
+
+// --- MODAL PARA CREAR NUEVA ETIQUETA ---
+function openCreateTagModal() {
+    createTagForm.reset();
+    newTagColorInput.value = 'azul';
+    initNewTagColorGrid();
+    createTagModal.classList.remove('hidden');
+    setTimeout(() => newTagNameInput.focus(), 50);
+}
+
+cancelCreateTagBtn.addEventListener('click', () => {
+    createTagModal.classList.add('hidden');
+});
+
+createTagForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const tagName = newTagNameInput.value.trim();
+    const tagColor = newTagColorInput.value || 'azul';
+
+    if (!tagName || !currentUserId) return;
+
+    saveNewTagBtn.disabled = true;
+    saveNewTagBtn.textContent = 'Guardando...';
+
+    try {
+        const { data: createdTag, error } = await supabase
+            .from('tags')
+            .insert([{
+                name: tagName,
+                color: tagColor,
+                user_id: currentUserId
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        showToast('¡Etiqueta creada con éxito!', 'success');
+        createTagModal.classList.add('hidden');
+
+        await loadUserTags(currentUserId);
+        if (createdTag) {
+            selectCreationTag(createdTag);
+        }
+    } catch (err) {
+        showToast('Error al crear etiqueta: ' + err.message, 'error');
+    } finally {
+        saveNewTagBtn.disabled = false;
+        saveNewTagBtn.textContent = 'Crear Etiqueta';
+    }
+});
+
+// --- MODAL PARA ELIMINAR ETIQUETA ---
+function openDeleteTagModal(tagId) {
+    tagToDeleteId = tagId;
+    deleteTagModal.classList.remove('hidden');
+}
+
+cancelDeleteTagBtn.addEventListener('click', () => {
+    deleteTagModal.classList.add('hidden');
+    tagToDeleteId = null;
+});
+
+confirmDeleteTagBtn.addEventListener('click', async () => {
+    if (!tagToDeleteId) return;
+
+    try {
+        const { error } = await supabase
+            .from('tags')
+            .delete()
+            .eq('id', tagToDeleteId);
+
+        if (error) throw error;
+
+        showToast('Etiqueta eliminada', 'success');
+
+        // Si la etiqueta eliminada estaba seleccionada en el formulario, volver a "Sin etiqueta"
+        if (taskTagInput.value === tagToDeleteId) {
+            selectCreationTag(null);
+        }
+
+        // Si el filtro activo estaba usando la etiqueta eliminada, resetear filtro
+        if (filterTagInput.value === tagToDeleteId) {
+            filterTagInput.value = 'all';
+            filterTagPreviewText.textContent = '🏷️ Etiquetas (Todas)';
+        }
+
+        await loadUserTags(currentUserId);
+        await loadTasks(currentUserId);
+    } catch (err) {
+        showToast('Error al eliminar etiqueta: ' + err.message, 'error');
+    } finally {
+        deleteTagModal.classList.add('hidden');
+        tagToDeleteId = null;
+    }
+});
 
 // --- 1. VERIFICAR SESIÓN Y CARGAR PERFIL ---
 async function checkAuthAndLoadProfile() {
@@ -169,11 +399,11 @@ async function checkAuthAndLoadProfile() {
         return null;
     }
 
-    const userId = session.user.id;
+    currentUserId = session.user.id;
     const { data: userData, error: userError } = await supabase
         .from('users')
         .select('username, profile_picture_url')
-        .eq('id', userId)
+        .eq('id', currentUserId)
         .single();
 
     if (userData && !userError) {
@@ -192,10 +422,10 @@ async function checkAuthAndLoadProfile() {
             avatarPlaceholder.classList.remove('hidden');
         }
     }
-    return userId; 
+    return currentUserId; 
 }
 
-// --- 2. MENÚ DESPLEGABLE ---
+// --- 2. MENÚ DESPLEGABLE PERFIL ---
 profileTrigger.addEventListener('click', () => {
     profileDropdown.classList.toggle('hidden');
 });
@@ -232,11 +462,11 @@ async function deleteFileFromStorage(fileUrl) {
     }
 }
 
-// --- 6. CARGAR TAREAS ---
+// --- 6. CARGAR TAREAS (CON RELACIÓN A ETIQUETAS) ---
 async function loadTasks(userId) {
     const { data: tasks, error } = await supabase
         .from('personal_tasks')
-        .select('*')
+        .select('*, tags(id, name, color)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false }); 
 
@@ -346,8 +576,7 @@ if (nextMonthBtn) {
 function applyFiltersAndRender() {
     const searchTerm = searchTaskInput.value.toLowerCase().trim();
     const fileFilter = filterFileSelect.value;
-    const colorFilterInput = document.getElementById('filter-color-value');
-    const colorFilter = colorFilterInput ? colorFilterInput.value : 'all';
+    const tagFilter = filterTagInput ? filterTagInput.value : 'all';
     const dateFilter = filterDateInput.value;
 
     const filteredTasks = allTasks.filter(task => {
@@ -360,15 +589,19 @@ function applyFiltersAndRender() {
             matchesFile = !task.file_url;
         }
 
-        const taskColorValue = task.color || 'blanco';
-        const matchesColor = (colorFilter === 'all') || (taskColorValue === colorFilter);
+        let matchesTag = true;
+        if (tagFilter === 'none') {
+            matchesTag = !task.tag_id;
+        } else if (tagFilter !== 'all') {
+            matchesTag = task.tag_id === tagFilter;
+        }
 
         let matchesDate = true;
         if (dateFilter) {
             matchesDate = task.due_date === dateFilter;
         }
 
-        return matchesTitle && matchesFile && matchesColor && matchesDate;
+        return matchesTitle && matchesFile && matchesTag && matchesDate;
     });
 
     renderTasks(filteredTasks);
@@ -388,13 +621,23 @@ function renderTasks(tasks) {
         const taskElement = document.createElement('div');
         taskElement.className = `task-item ${task.is_completed ? 'completed' : ''}`;
         
-        // Aplicar colores dinámicos
-        const colorKey = task.color || 'blanco';
+        // Obtener color desde la etiqueta asociada o usar blanco por defecto
+        const colorKey = (task.tags && task.tags.color) ? task.tags.color : 'blanco';
         const styleConfig = TASK_COLORS[colorKey] || TASK_COLORS['blanco'];
         
         taskElement.style.backgroundColor = styleConfig.bg;
         taskElement.style.color = styleConfig.text;
         taskElement.style.borderLeft = `4px solid ${styleConfig.border}`;
+
+        // Insignia con el nombre de la etiqueta si existe
+        let tagBadgeMarkup = '';
+        if (task.tags && task.tags.name) {
+            tagBadgeMarkup = `
+                <span style="font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.08); color: inherit; border: 1px solid rgba(0,0,0,0.15);">
+                    🏷️ ${task.tags.name}
+                </span>
+            `;
+        }
 
         let dueDateMarkup = '';
         if (task.due_date) {
@@ -412,8 +655,9 @@ function renderTasks(tasks) {
 
         taskElement.innerHTML = `
             <div class="task-content" style="color: inherit;">
-                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
                     <h4 class="task-title" style="margin: 0; color: inherit;">${task.title}</h4>
+                    ${tagBadgeMarkup}
                     ${dueDateMarkup}
                 </div>
                 ${task.description ? `<p style="color: inherit; opacity: 0.85;">${task.description}</p>` : ''}
@@ -468,12 +712,10 @@ clearFiltersBtn.addEventListener('click', () => {
     searchTaskInput.value = '';
     filterFileSelect.value = 'all';
     
-    // Resetear desplegable de color del filtro
-    const filterColorInput = document.getElementById('filter-color-value');
-    if (filterColorInput) filterColorInput.value = 'all';
-    const filterPreviewText = document.getElementById('filter-color-preview-text');
-    if (filterPreviewText) filterPreviewText.textContent = '🎨 Colores (Todos)';
-    document.querySelectorAll('#filter-color-dropdown .color-swatch-btn').forEach(s => s.classList.remove('selected'));
+    // Resetear filtro de etiquetas
+    if (filterTagInput) filterTagInput.value = 'all';
+    if (filterTagPreviewText) filterTagPreviewText.textContent = '🏷️ Etiquetas (Todas)';
+    renderTagDropdowns();
 
     filterDateInput.value = '';
     applyFiltersAndRender();
@@ -494,8 +736,7 @@ createTaskForm.addEventListener('submit', async (e) => {
 
     const title = taskTitleInput.value;
     const description = taskDescInput.value;
-    const taskColorInput = document.getElementById('task-color-value');
-    const taskColor = taskColorInput ? taskColorInput.value : 'blanco';
+    const tagId = taskTagInput && taskTagInput.value ? taskTagInput.value : null;
     const dueDate = taskDateInput.value || null;
     const file = taskFileInput.files[0];
 
@@ -532,7 +773,7 @@ createTaskForm.addEventListener('submit', async (e) => {
             user_id: session.user.id, 
             title: title, 
             description: description || null,
-            color: taskColor,
+            tag_id: tagId,
             due_date: dueDate,
             file_url: fileUrl,
             file_name: fileName
@@ -544,15 +785,7 @@ createTaskForm.addEventListener('submit', async (e) => {
         showToast('Tarea añadida con éxito', 'success');
         createTaskForm.reset();
         fileNameDisplay.textContent = 'Ningún archivo...'; 
-        
-        // Reiniciar selector de color de creación a blanco por defecto
-        if (taskColorInput) taskColorInput.value = 'blanco';
-        const taskPreviewSwatch = document.getElementById('task-color-preview-swatch');
-        const taskPreviewText = document.getElementById('task-color-preview-text');
-        if (taskPreviewSwatch) taskPreviewSwatch.style.backgroundColor = '#ffffff';
-        if (taskPreviewText) taskPreviewText.textContent = 'Blanco';
-        initColorPickers();
-
+        selectCreationTag(null);
         loadTasks(session.user.id);
     }
 
@@ -659,9 +892,10 @@ confirmDeleteBtn.addEventListener('click', async () => {
 
 // --- INICIALIZACIÓN ---
 window.addEventListener('DOMContentLoaded', async () => {
-    initColorPickers();
+    initNewTagColorGrid();
     const userId = await checkAuthAndLoadProfile();
     if (userId) {
-        loadTasks(userId);
+        await loadUserTags(userId);
+        await loadTasks(userId);
     }
 });

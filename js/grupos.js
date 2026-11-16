@@ -60,6 +60,31 @@ const deleteGroupModal = document.getElementById('delete-group-modal');
 const confirmDeleteGroupBtn = document.getElementById('confirm-delete-group-btn');
 const cancelDeleteGroupBtn = document.getElementById('cancel-delete-group-btn');
 
+// Referencias de Etiquetas de Grupo (Desplegables y Modales)
+const groupTaskTagTrigger = document.getElementById('group-task-tag-trigger');
+const groupTaskTagDropdown = document.getElementById('group-task-tag-dropdown');
+const groupTaskTagInput = document.getElementById('group-task-tag-value');
+const groupTaskTagPreviewDot = document.getElementById('group-task-tag-preview-dot');
+const groupTaskTagPreviewText = document.getElementById('group-task-tag-preview-text');
+
+const groupFilterTagTrigger = document.getElementById('group-filter-tag-trigger');
+const groupFilterTagDropdown = document.getElementById('group-filter-tag-dropdown');
+const groupFilterTagInput = document.getElementById('group-filter-tag-value');
+const groupFilterTagPreviewText = document.getElementById('group-filter-tag-preview-text');
+
+const groupCreateTagModal = document.getElementById('group-create-tag-modal');
+const groupCreateTagForm = document.getElementById('group-create-tag-form');
+const groupNewTagNameInput = document.getElementById('group-new-tag-name');
+const groupNewTagColorGrid = document.getElementById('group-new-tag-color-grid');
+const groupNewTagColorInput = document.getElementById('group-new-tag-color-value');
+const groupCancelCreateTagBtn = document.getElementById('group-cancel-create-tag-btn');
+const groupSaveNewTagBtn = document.getElementById('group-save-new-tag-btn');
+
+const groupDeleteTagModal = document.getElementById('group-delete-tag-modal');
+const groupConfirmDeleteTagBtn = document.getElementById('group-confirm-delete-tag-btn');
+const groupCancelDeleteTagBtn = document.getElementById('group-cancel-delete-tag-btn');
+let groupTagToDeleteId = null;
+
 // Tareas del grupo y referencias a sus filtros
 const groupTaskForm = document.getElementById('group-task-form');
 const groupTaskTitle = document.getElementById('group-task-title');
@@ -103,6 +128,7 @@ let currentUserId = null;
 let currentGroup = null; 
 let currentGroupMembers = []; 
 let allGroupTasks = []; 
+let groupTags = [];
 
 // --- NOTIFICACIONES TOAST ---
 function showToast(message, type) {
@@ -111,101 +137,330 @@ function showToast(message, type) {
     setTimeout(() => { toastNotification.classList.remove('show'); }, 3500);
 }
 
-// --- RENDERIZAR MENÚS DESPLEGABLES DE COLOR EN GRUPOS ---
-function initGroupColorPickers() {
-    // 1. Desplegable en formulario de creación de tareas de grupo
-    const groupTaskTrigger = document.getElementById('group-task-color-trigger');
-    const groupTaskDropdown = document.getElementById('group-task-color-dropdown');
-    const groupTaskInput = document.getElementById('group-task-color-value');
-    const groupTaskPreviewSwatch = document.getElementById('group-task-color-preview-swatch');
-    const groupTaskPreviewText = document.getElementById('group-task-color-preview-text');
+// --- INICIALIZAR PALETA DE COLORES EN EL MODAL DE NUEVA ETIQUETA DE GRUPO ---
+function initGroupNewTagColorGrid() {
+    if (!groupNewTagColorGrid) return;
+    groupNewTagColorGrid.innerHTML = '';
 
-    if (groupTaskTrigger && groupTaskDropdown && groupTaskInput) {
-        groupTaskDropdown.innerHTML = '';
-        Object.keys(TASK_COLORS).forEach(colorName => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = `color-swatch-btn ${colorName === 'blanco' ? 'selected' : ''}`;
-            btn.style.backgroundColor = TASK_COLORS[colorName].bg;
-            if (colorName === 'blanco' || colorName === 'amarillo') {
-                btn.style.border = '1px solid #adb5bd';
-            }
-            btn.title = colorName.charAt(0).toUpperCase() + colorName.slice(1);
-            
-            btn.addEventListener('click', () => {
-                groupTaskDropdown.querySelectorAll('.color-swatch-btn').forEach(s => s.classList.remove('selected'));
-                btn.classList.add('selected');
-                groupTaskInput.value = colorName;
-                
-                groupTaskPreviewSwatch.style.backgroundColor = TASK_COLORS[colorName].bg;
-                groupTaskPreviewText.textContent = colorName.charAt(0).toUpperCase() + colorName.slice(1);
-                groupTaskDropdown.classList.add('hidden');
-            });
-            groupTaskDropdown.appendChild(btn);
+    Object.keys(TASK_COLORS).forEach(colorName => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `color-swatch-btn ${colorName === 'azul' ? 'selected' : ''}`;
+        btn.style.backgroundColor = TASK_COLORS[colorName].bg;
+        if (colorName === 'blanco' || colorName === 'amarillo') {
+            btn.style.border = '1px solid #adb5bd';
+        }
+        btn.title = colorName.charAt(0).toUpperCase() + colorName.slice(1);
+
+        btn.addEventListener('click', () => {
+            groupNewTagColorGrid.querySelectorAll('.color-swatch-btn').forEach(s => s.classList.remove('selected'));
+            btn.classList.add('selected');
+            groupNewTagColorInput.value = colorName;
         });
 
-        groupTaskTrigger.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (groupFilterDropdown) groupFilterDropdown.classList.add('hidden');
-            groupTaskDropdown.classList.toggle('hidden');
-        });
-    }
-
-    // 2. Desplegable en barra de filtros de grupo
-    const groupFilterTrigger = document.getElementById('group-filter-color-trigger');
-    const groupFilterDropdown = document.getElementById('group-filter-color-dropdown');
-    const groupFilterInput = document.getElementById('group-filter-color-value');
-    const groupFilterPreviewText = document.getElementById('group-filter-color-preview-text');
-
-    if (groupFilterTrigger && groupFilterDropdown && groupFilterInput) {
-        groupFilterDropdown.innerHTML = '';
-        
-        const allBtn = document.createElement('div');
-        allBtn.textContent = '🎨 Colores (Todos)';
-        allBtn.style.cssText = 'grid-column: 1 / -1; padding: 6px; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; background: #f1f3f5; border-radius: 4px; margin-bottom: 4px; color: #333;';
-        allBtn.addEventListener('click', () => {
-            groupFilterDropdown.querySelectorAll('.color-swatch-btn').forEach(s => s.classList.remove('selected'));
-            groupFilterInput.value = 'all';
-            groupFilterPreviewText.textContent = '🎨 Colores (Todos)';
-            groupFilterDropdown.classList.add('hidden');
-            applyGroupFiltersAndRender();
-        });
-        groupFilterDropdown.appendChild(allBtn);
-
-        Object.keys(TASK_COLORS).forEach(colorName => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'color-swatch-btn';
-            btn.style.backgroundColor = TASK_COLORS[colorName].bg;
-            if (colorName === 'blanco' || colorName === 'amarillo') {
-                btn.style.border = '1px solid #adb5bd';
-            }
-            btn.title = colorName.charAt(0).toUpperCase() + colorName.slice(1);
-            
-            btn.addEventListener('click', () => {
-                groupFilterDropdown.querySelectorAll('.color-swatch-btn').forEach(s => s.classList.remove('selected'));
-                btn.classList.add('selected');
-                groupFilterInput.value = colorName;
-                groupFilterPreviewText.textContent = `🎨 ${colorName.charAt(0).toUpperCase() + colorName.slice(1)}`;
-                groupFilterDropdown.classList.add('hidden');
-                applyGroupFiltersAndRender();
-            });
-            groupFilterDropdown.appendChild(btn);
-        });
-
-        groupFilterTrigger.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (groupTaskDropdown) groupTaskDropdown.classList.add('hidden');
-            groupFilterDropdown.classList.toggle('hidden');
-        });
-    }
-
-    // Cerrar desplegables al hacer clic fuera
-    document.addEventListener('click', () => {
-        if (groupTaskDropdown) groupTaskDropdown.classList.add('hidden');
-        if (groupFilterDropdown) groupFilterDropdown.classList.add('hidden');
+        groupNewTagColorGrid.appendChild(btn);
     });
 }
+
+// --- CARGAR ETIQUETAS DEL GRUPO ---
+async function loadGroupTags(groupId) {
+    const { data, error } = await supabase
+        .from('tags')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: true });
+
+    if (error) {
+        showToast('Error al cargar etiquetas del grupo', 'error');
+        return;
+    }
+
+    groupTags = data || [];
+    renderGroupTagDropdowns();
+}
+
+// --- RENDERIZAR MENÚS DESPLEGABLES DE ETIQUETAS DEL GRUPO ---
+function renderGroupTagDropdowns() {
+    const isAdmin = currentGroup && currentGroup.admin_id === currentUserId;
+
+    // 1. Desplegable en el formulario de creación de tarea de grupo
+    if (groupTaskTagDropdown) {
+        groupTaskTagDropdown.innerHTML = '';
+
+        // Botón superior para añadir etiqueta nueva (SOLO ADMINISTRADORES)
+        if (isAdmin) {
+            const addNewBtn = document.createElement('button');
+            addNewBtn.type = 'button';
+            addNewBtn.className = 'tag-add-new-btn';
+            addNewBtn.innerHTML = '➕ Añadir nueva etiqueta';
+            addNewBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                groupTaskTagDropdown.classList.add('hidden');
+                openGroupCreateTagModal();
+            });
+            groupTaskTagDropdown.appendChild(addNewBtn);
+        }
+
+        // Opción neutra: Sin etiqueta
+        const noneItem = document.createElement('button');
+        noneItem.type = 'button';
+        noneItem.className = `tag-option-item ${groupTaskTagInput.value === '' ? 'selected' : ''}`;
+        noneItem.innerHTML = `
+            <span class="tag-color-dot" style="background-color: #ffffff; border: 1px solid #ccc;"></span>
+            <span>Sin etiqueta</span>
+        `;
+        noneItem.addEventListener('click', () => {
+            selectGroupCreationTag(null);
+            groupTaskTagDropdown.classList.add('hidden');
+        });
+        groupTaskTagDropdown.appendChild(noneItem);
+
+        // Listado de etiquetas del grupo (botón de eliminar SOLO para ADMINISTRADORES)
+        groupTags.forEach(tag => {
+            const colorStyle = TASK_COLORS[tag.color] || TASK_COLORS['blanco'];
+
+            const row = document.createElement('div');
+            row.className = `tag-option-row ${groupTaskTagInput.value === tag.id ? 'selected' : ''}`;
+
+            const itemBtn = document.createElement('button');
+            itemBtn.type = 'button';
+            itemBtn.className = 'tag-option-item';
+            itemBtn.innerHTML = `
+                <span class="tag-color-dot" style="background-color: ${colorStyle.bg}; border: 1px solid ${colorStyle.border};"></span>
+                <span>${tag.name}</span>
+            `;
+            itemBtn.addEventListener('click', () => {
+                selectGroupCreationTag(tag);
+                groupTaskTagDropdown.classList.add('hidden');
+            });
+
+            row.appendChild(itemBtn);
+
+            if (isAdmin) {
+                const deleteTagBtn = document.createElement('button');
+                deleteTagBtn.type = 'button';
+                deleteTagBtn.className = 'tag-delete-btn';
+                deleteTagBtn.title = 'Eliminar etiqueta';
+                deleteTagBtn.textContent = '🗑️';
+                deleteTagBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    groupTaskTagDropdown.classList.add('hidden');
+                    openGroupDeleteTagModal(tag.id);
+                });
+                row.appendChild(deleteTagBtn);
+            }
+
+            groupTaskTagDropdown.appendChild(row);
+        });
+    }
+
+    // 2. Desplegable en la barra de filtros del grupo
+    if (groupFilterTagDropdown) {
+        groupFilterTagDropdown.innerHTML = '';
+
+        // Opción: Todas las etiquetas
+        const allItem = document.createElement('button');
+        allItem.type = 'button';
+        allItem.className = `tag-option-item ${groupFilterTagInput.value === 'all' ? 'selected' : ''}`;
+        allItem.innerHTML = `<span>🏷️ Etiquetas (Todas)</span>`;
+        allItem.addEventListener('click', () => {
+            groupFilterTagInput.value = 'all';
+            groupFilterTagPreviewText.textContent = '🏷️ Etiquetas (Todas)';
+            groupFilterTagDropdown.classList.add('hidden');
+            renderGroupTagDropdowns();
+            applyGroupFiltersAndRender();
+        });
+        groupFilterTagDropdown.appendChild(allItem);
+
+        // Opción: Sin etiqueta
+        const untaggedItem = document.createElement('button');
+        untaggedItem.type = 'button';
+        untaggedItem.className = `tag-option-item ${groupFilterTagInput.value === 'none' ? 'selected' : ''}`;
+        untaggedItem.innerHTML = `
+            <span class="tag-color-dot" style="background-color: #ffffff; border: 1px solid #ccc;"></span>
+            <span>Sin etiqueta</span>
+        `;
+        untaggedItem.addEventListener('click', () => {
+            groupFilterTagInput.value = 'none';
+            groupFilterTagPreviewText.textContent = '🏷️ Sin etiqueta';
+            groupFilterTagDropdown.classList.add('hidden');
+            renderGroupTagDropdowns();
+            applyGroupFiltersAndRender();
+        });
+        groupFilterTagDropdown.appendChild(untaggedItem);
+
+        // Listado de etiquetas pertenecientes al grupo
+        groupTags.forEach(tag => {
+            const colorStyle = TASK_COLORS[tag.color] || TASK_COLORS['blanco'];
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = `tag-option-item ${groupFilterTagInput.value === tag.id ? 'selected' : ''}`;
+            item.innerHTML = `
+                <span class="tag-color-dot" style="background-color: ${colorStyle.bg}; border: 1px solid ${colorStyle.border};"></span>
+                <span>${tag.name}</span>
+            `;
+            item.addEventListener('click', () => {
+                groupFilterTagInput.value = tag.id;
+                groupFilterTagPreviewText.textContent = `🏷️ ${tag.name}`;
+                groupFilterTagDropdown.classList.add('hidden');
+                renderGroupTagDropdowns();
+                applyGroupFiltersAndRender();
+            });
+            groupFilterTagDropdown.appendChild(item);
+        });
+    }
+}
+
+function selectGroupCreationTag(tag) {
+    if (!tag) {
+        groupTaskTagInput.value = '';
+        groupTaskTagPreviewDot.style.backgroundColor = '#ffffff';
+        groupTaskTagPreviewDot.style.border = '1px solid #ccc';
+        groupTaskTagPreviewText.textContent = 'Sin etiqueta';
+    } else {
+        const colorStyle = TASK_COLORS[tag.color] || TASK_COLORS['blanco'];
+        groupTaskTagInput.value = tag.id;
+        groupTaskTagPreviewDot.style.backgroundColor = colorStyle.bg;
+        groupTaskTagPreviewDot.style.border = `1px solid ${colorStyle.border}`;
+        groupTaskTagPreviewText.textContent = tag.name;
+    }
+    renderGroupTagDropdowns();
+}
+
+// Eventos de apertura/cierre de desplegables de etiquetas de grupo
+if (groupTaskTagTrigger) {
+    groupTaskTagTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (groupFilterTagDropdown) groupFilterTagDropdown.classList.add('hidden');
+        groupTaskTagDropdown.classList.toggle('hidden');
+    });
+}
+
+if (groupFilterTagTrigger) {
+    groupFilterTagTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (groupTaskTagDropdown) groupTaskTagDropdown.classList.add('hidden');
+        groupFilterTagDropdown.classList.toggle('hidden');
+    });
+}
+
+document.addEventListener('click', () => {
+    if (groupTaskTagDropdown) groupTaskTagDropdown.classList.add('hidden');
+    if (groupFilterTagDropdown) groupFilterTagDropdown.classList.add('hidden');
+});
+
+// --- MODAL PARA CREAR NUEVA ETIQUETA EN EL GRUPO (SOLO ADMIN) ---
+function openGroupCreateTagModal() {
+    if (!currentGroup || currentGroup.admin_id !== currentUserId) {
+        showToast('Solo el administrador puede crear etiquetas en el grupo', 'error');
+        return;
+    }
+    groupCreateTagForm.reset();
+    groupNewTagColorInput.value = 'azul';
+    initGroupNewTagColorGrid();
+    groupCreateTagModal.classList.remove('hidden');
+    setTimeout(() => groupNewTagNameInput.focus(), 50);
+}
+
+groupCancelCreateTagBtn.addEventListener('click', () => {
+    groupCreateTagModal.classList.add('hidden');
+});
+
+groupCreateTagForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!currentGroup || currentGroup.admin_id !== currentUserId) {
+        showToast('No tienes permisos para crear etiquetas en este grupo', 'error');
+        return;
+    }
+
+    const tagName = groupNewTagNameInput.value.trim();
+    const tagColor = groupNewTagColorInput.value || 'azul';
+
+    if (!tagName) return;
+
+    groupSaveNewTagBtn.disabled = true;
+    groupSaveNewTagBtn.textContent = 'Guardando...';
+
+    try {
+        const { data: createdTag, error } = await supabase
+            .from('tags')
+            .insert([{
+                name: tagName,
+                color: tagColor,
+                group_id: currentGroup.id
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        showToast('¡Etiqueta de grupo creada con éxito!', 'success');
+        groupCreateTagModal.classList.add('hidden');
+
+        await loadGroupTags(currentGroup.id);
+        if (createdTag) {
+            selectGroupCreationTag(createdTag);
+        }
+    } catch (err) {
+        showToast('Error al crear etiqueta: ' + err.message, 'error');
+    } finally {
+        groupSaveNewTagBtn.disabled = false;
+        groupSaveNewTagBtn.textContent = 'Crear Etiqueta';
+    }
+});
+
+// --- MODAL PARA ELIMINAR ETIQUETA DEL GRUPO (SOLO ADMIN) ---
+function openGroupDeleteTagModal(tagId) {
+    if (!currentGroup || currentGroup.admin_id !== currentUserId) {
+        showToast('Solo el administrador puede eliminar etiquetas del grupo', 'error');
+        return;
+    }
+    groupTagToDeleteId = tagId;
+    groupDeleteTagModal.classList.remove('hidden');
+}
+
+groupCancelDeleteTagBtn.addEventListener('click', () => {
+    groupDeleteTagModal.classList.add('hidden');
+    groupTagToDeleteId = null;
+});
+
+groupConfirmDeleteTagBtn.addEventListener('click', async () => {
+    if (!groupTagToDeleteId || !currentGroup) return;
+    if (currentGroup.admin_id !== currentUserId) {
+        showToast('No tienes permisos para eliminar etiquetas en este grupo', 'error');
+        groupDeleteTagModal.classList.add('hidden');
+        groupTagToDeleteId = null;
+        return;
+    }
+
+    try {
+        const { error } = await supabase
+            .from('tags')
+            .delete()
+            .eq('id', groupTagToDeleteId);
+
+        if (error) throw error;
+
+        showToast('Etiqueta eliminada', 'success');
+
+        if (groupTaskTagInput.value === groupTagToDeleteId) {
+            selectGroupCreationTag(null);
+        }
+
+        if (groupFilterTagInput.value === groupTagToDeleteId) {
+            groupFilterTagInput.value = 'all';
+            groupFilterTagPreviewText.textContent = '🏷️ Etiquetas (Todas)';
+        }
+
+        await loadGroupTags(currentGroup.id);
+        await loadGroupTasks();
+    } catch (err) {
+        showToast('Error al eliminar etiqueta: ' + err.message, 'error');
+    } finally {
+        groupDeleteTagModal.classList.add('hidden');
+        groupTagToDeleteId = null;
+    }
+});
 
 // --- VERIFICAR AUTENTICACIÓN ---
 async function checkAuthAndLoadProfile() {
@@ -319,16 +574,15 @@ async function selectGroup(group) {
     if (groupSearchTaskInput) groupSearchTaskInput.value = '';
     if (groupFilterFileSelect) groupFilterFileSelect.value = 'all';
     
-    // Resetear desplegable de filtro de color en selección
-    const filterColorInput = document.getElementById('group-filter-color-value');
-    if (filterColorInput) filterColorInput.value = 'all';
-    const filterPreviewText = document.getElementById('group-filter-color-preview-text');
-    if (filterPreviewText) filterPreviewText.textContent = '🎨 Colores (Todos)';
-    document.querySelectorAll('#group-filter-color-dropdown .color-swatch-btn').forEach(s => s.classList.remove('selected'));
+    // Resetear selectores de etiqueta al cambiar de grupo
+    selectGroupCreationTag(null);
+    if (groupFilterTagInput) groupFilterTagInput.value = 'all';
+    if (groupFilterTagPreviewText) groupFilterTagPreviewText.textContent = '🏷️ Etiquetas (Todas)';
 
     if (groupFilterDateInput) groupFilterDateInput.value = '';
 
     await loadGroupMembers(group);
+    await loadGroupTags(group.id);
     await loadGroupTasks();
 }
 
@@ -468,7 +722,7 @@ async function loadGroupMembers(group) {
 async function loadGroupTasks() {
     const { data: tasks, error } = await supabase
         .from('group_tasks')
-        .select('*')
+        .select('*, tags(id, name, color)')
         .eq('group_id', currentGroup.id)
         .order('created_at', { ascending: false });
 
@@ -483,10 +737,7 @@ async function loadGroupTasks() {
 function applyGroupFiltersAndRender() {
     const searchTerm = groupSearchTaskInput ? groupSearchTaskInput.value.toLowerCase().trim() : '';
     const fileFilter = groupFilterFileSelect ? groupFilterFileSelect.value : 'all';
-    
-    const filterColorInput = document.getElementById('group-filter-color-value');
-    const colorFilter = filterColorInput ? filterColorInput.value : 'all';
-    
+    const tagFilter = groupFilterTagInput ? groupFilterTagInput.value : 'all';
     const dateFilter = groupFilterDateInput ? groupFilterDateInput.value : '';
 
     const filteredTasks = allGroupTasks.filter(task => {
@@ -499,15 +750,19 @@ function applyGroupFiltersAndRender() {
             matchesFile = !task.file_url;
         }
 
-        const taskColorValue = task.color || 'blanco';
-        const matchesColor = (colorFilter === 'all') || (taskColorValue === colorFilter);
+        let matchesTag = true;
+        if (tagFilter === 'none') {
+            matchesTag = !task.tag_id;
+        } else if (tagFilter !== 'all') {
+            matchesTag = task.tag_id === tagFilter;
+        }
 
         let matchesDate = true;
         if (dateFilter) {
             matchesDate = task.due_date === dateFilter;
         }
 
-        return matchesTitle && matchesFile && matchesColor && matchesDate;
+        return matchesTitle && matchesFile && matchesTag && matchesDate;
     });
 
     renderGroupTasks(filteredTasks);
@@ -529,13 +784,23 @@ function renderGroupTasks(tasks) {
         const item = document.createElement('div');
         item.className = `task-item ${task.is_completed ? 'completed' : ''}`;
 
-        // Aplicar colores dinámicos
-        const colorKey = task.color || 'blanco';
+        // Obtener color desde la etiqueta asociada o usar blanco por defecto
+        const colorKey = (task.tags && task.tags.color) ? task.tags.color : 'blanco';
         const styleConfig = TASK_COLORS[colorKey] || TASK_COLORS['blanco'];
         
         item.style.backgroundColor = styleConfig.bg;
         item.style.color = styleConfig.text;
         item.style.borderLeft = `4px solid ${styleConfig.border}`;
+
+        // Insignia con el nombre de la etiqueta si existe
+        let tagBadgeMarkup = '';
+        if (task.tags && task.tags.name) {
+            tagBadgeMarkup = `
+                <span style="font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.08); color: inherit; border: 1px solid rgba(0,0,0,0.15);">
+                    🏷️ ${task.tags.name}
+                </span>
+            `;
+        }
 
         const assigneeUser = currentGroupMembers.find(m => m.id === task.assigned_to);
         const assigneeName = assigneeUser ? assigneeUser.username : 'No asignado';
@@ -575,8 +840,9 @@ function renderGroupTasks(tasks) {
 
         item.innerHTML = `
             <div class="task-content" style="color: inherit;">
-                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
                     <h4 class="task-title" style="margin: 0; color: inherit;">${task.title}</h4>
+                    ${tagBadgeMarkup}
                     ${dueDateMarkup}
                 </div>
                 ${task.description ? `<p style="color: inherit; opacity: 0.85;">${task.description}</p>` : ''}
@@ -697,12 +963,10 @@ if (groupClearFiltersBtn) {
         if (groupSearchTaskInput) groupSearchTaskInput.value = '';
         if (groupFilterFileSelect) groupFilterFileSelect.value = 'all';
         
-        // Resetear desplegable de color en grupos
-        const filterColorInput = document.getElementById('group-filter-color-value');
-        if (filterColorInput) filterColorInput.value = 'all';
-        const filterPreviewText = document.getElementById('group-filter-color-preview-text');
-        if (filterPreviewText) filterPreviewText.textContent = '🎨 Colores (Todos)';
-        document.querySelectorAll('#group-filter-color-dropdown .color-swatch-btn').forEach(s => s.classList.remove('selected'));
+        // Resetear filtro de etiquetas del grupo
+        if (groupFilterTagInput) groupFilterTagInput.value = 'all';
+        if (groupFilterTagPreviewText) groupFilterTagPreviewText.textContent = '🏷️ Etiquetas (Todas)';
+        renderGroupTagDropdowns();
 
         if (groupFilterDateInput) groupFilterDateInput.value = '';
         applyGroupFiltersAndRender();
@@ -719,10 +983,7 @@ groupTaskForm.addEventListener('submit', async (e) => {
     const title = groupTaskTitle.value.trim();
     const description = groupTaskDesc.value.trim();
     const assignedTo = groupTaskAssignee.value; 
-    
-    const taskColorInput = document.getElementById('group-task-color-value');
-    const taskColor = taskColorInput ? taskColorInput.value : 'blanco';
-    
+    const tagId = groupTaskTagInput && groupTaskTagInput.value ? groupTaskTagInput.value : null;
     const dueDate = groupTaskDateInput.value || null;
     const file = groupTaskFile.files[0];
 
@@ -747,7 +1008,7 @@ groupTaskForm.addEventListener('submit', async (e) => {
             description: description || null,
             assigned_to: assignedTo,
             created_by: currentUserId,
-            color: taskColor,
+            tag_id: tagId,
             file_url: fileUrl,
             file_name: fileNameStr,
             due_date: dueDate,
@@ -759,15 +1020,7 @@ groupTaskForm.addEventListener('submit', async (e) => {
         showToast('¡Tarea añadida con éxito!', 'success');
         groupTaskForm.reset();
         groupFileNamePreview.textContent = 'Ningún archivo...';
-        
-        // Reiniciar selector desplegable de color de creación de grupo a blanco
-        if (taskColorInput) taskColorInput.value = 'blanco';
-        const groupTaskPreviewSwatch = document.getElementById('group-task-color-preview-swatch');
-        const groupTaskPreviewText = document.getElementById('group-task-color-preview-text');
-        if (groupTaskPreviewSwatch) groupTaskPreviewSwatch.style.backgroundColor = '#ffffff';
-        if (groupTaskPreviewText) groupTaskPreviewText.textContent = 'Blanco';
-        initGroupColorPickers();
-
+        selectGroupCreationTag(null);
         loadGroupTasks();
     } catch (err) { showToast(err.message, 'error'); }
     finally {
@@ -935,6 +1188,9 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
         const { error: taskErr } = await supabase.from('group_tasks').delete().eq('group_id', currentGroup.id);
         if (taskErr) throw taskErr;
 
+        const { error: tagsErr } = await supabase.from('tags').delete().eq('group_id', currentGroup.id);
+        if (tagsErr) throw tagsErr;
+
         const { error: membersErr } = await supabase.from('group_members').delete().eq('group_id', currentGroup.id);
         if (membersErr) throw membersErr;
 
@@ -998,7 +1254,7 @@ confirmKickBtn.addEventListener('click', async () => {
 
 // --- INICIALIZACIÓN ---
 window.addEventListener('DOMContentLoaded', async () => {
-    initGroupColorPickers();
+    initGroupNewTagColorGrid();
     const uId = await checkAuthAndLoadProfile();
     if (uId) loadGroups();
 });

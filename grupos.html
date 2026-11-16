@@ -32,7 +32,7 @@
         </div>
     </header>
 
-    <!-- NUEVO LAYOUT DE 3 COLUMNAS PARA GRUPOS -->
+    <!-- LAYOUT DE 3 COLUMNAS PARA GRUPOS -->
     <main class="dashboard-grid-layout">
         
         <!-- COLUMNA 1: Calendario Lateral (Oculto por defecto hasta que se seleccione un grupo) -->
@@ -101,18 +101,20 @@
                                     </label>
                                     <span id="group-file-name-preview" style="font-size: 13px; color: #666;">Ningún archivo...</span>
                                 </div>
+                                
+                                <!-- SELECTOR DE ETIQUETAS EN CREACIÓN DE GRUPO -->
                                 <div style="display: flex; align-items: center; gap: 10px;">
-                                    <label style="font-size: 13px; font-weight: bold; color: #555;">🎨 Color:</label>
-                                    <!-- Menú desplegable flotante de colores para creación en grupos -->
-                                    <div class="color-dropdown-wrapper">
-                                        <button type="button" id="group-task-color-trigger" class="btn-secondary" style="display: flex; align-items: center; gap: 8px; height: 35px; box-sizing: border-box; cursor: pointer;">
-                                            <span id="group-task-color-preview-swatch" style="width: 16px; height: 16px; border-radius: 3px; background-color: #ffffff; border: 1px solid #ccc; display: inline-block;"></span>
-                                            <span id="group-task-color-preview-text">Blanco</span> ▾
+                                    <label style="font-size: 13px; font-weight: bold; color: #555;">🏷️ Etiqueta:</label>
+                                    <div class="tag-dropdown-wrapper">
+                                        <button type="button" id="group-task-tag-trigger" class="btn-secondary" style="display: flex; align-items: center; gap: 8px; height: 35px; box-sizing: border-box; cursor: pointer;">
+                                            <span id="group-task-tag-preview-dot" class="tag-color-dot" style="background-color: #ffffff; border: 1px solid #ccc;"></span>
+                                            <span id="group-task-tag-preview-text">Sin etiqueta</span> ▾
                                         </button>
-                                        <div id="group-task-color-dropdown" class="color-dropdown-content hidden"></div>
-                                        <input type="hidden" id="group-task-color-value" value="blanco">
+                                        <div id="group-task-tag-dropdown" class="tag-dropdown-content hidden"></div>
+                                        <input type="hidden" id="group-task-tag-value" value="">
                                     </div>
                                 </div>
+
                                 <div>
                                     <label class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
                                         📅 
@@ -141,13 +143,13 @@
                                 <option value="without" style="background: #fff; color: #333;">Sin archivo</option>
                             </select>
 
-                            <!-- 3. Filtro desplegable de Colores -->
-                            <div class="color-dropdown-wrapper">
-                                <button type="button" id="group-filter-color-trigger" class="btn-secondary" style="display: flex; align-items: center; gap: 8px; height: 35px; box-sizing: border-box; cursor: pointer;">
-                                    <span id="group-filter-color-preview-text">🎨 Colores (Todos)</span> ▾
+                            <!-- 3. Filtro desplegable de Etiquetas del Grupo -->
+                            <div class="tag-dropdown-wrapper">
+                                <button type="button" id="group-filter-tag-trigger" class="btn-secondary" style="display: flex; align-items: center; gap: 8px; height: 35px; box-sizing: border-box; cursor: pointer;">
+                                    <span id="group-filter-tag-preview-text">🏷️ Etiquetas (Todas)</span> ▾
                                 </button>
-                                <div id="group-filter-color-dropdown" class="color-dropdown-content hidden" style="width: 150px;"></div>
-                                <input type="hidden" id="group-filter-color-value" value="all">
+                                <div id="group-filter-tag-dropdown" class="tag-dropdown-content hidden"></div>
+                                <input type="hidden" id="group-filter-tag-value" value="all">
                             </div>
 
                             <!-- 4. Selector de Fecha Concreta -->
@@ -179,7 +181,7 @@
 
         </section>
 
-        <!-- COLUMNA 3: Mis Grupos (Movido a la derecha como se solicitó) -->
+        <!-- COLUMNA 3: Mis Grupos -->
         <aside id="right-margin-area">
             <section class="task-form-card" style="height: fit-content; position: sticky; top: 90px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 10px;">
@@ -194,6 +196,40 @@
         </aside>
 
     </main>
+
+    <!-- MODAL PARA CREAR NUEVA ETIQUETA DE GRUPO -->
+    <div id="group-create-tag-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">🏷️ Nueva Etiqueta de Grupo</h3>
+            <form id="group-create-tag-form">
+                <div class="form-group" style="text-align: left;">
+                    <label for="group-new-tag-name">Nombre de la etiqueta</label>
+                    <input type="text" id="group-new-tag-name" required placeholder="Ej. Urgente, Diseño, Backend...">
+                </div>
+                <div class="form-group" style="text-align: left;">
+                    <label>Color de la etiqueta</label>
+                    <div id="group-new-tag-color-grid" class="modal-color-grid"></div>
+                    <input type="hidden" id="group-new-tag-color-value" value="azul">
+                </div>
+                <div class="modal-actions" style="margin-top: 20px;">
+                    <button type="button" id="group-cancel-create-tag-btn" class="btn-secondary">Cancelar</button>
+                    <button type="submit" id="group-save-new-tag-btn" class="btn-primary" style="width: auto; flex-grow: 1;">Crear Etiqueta</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIRMACIÓN DE ELIMINAR ETIQUETA DE GRUPO -->
+    <div id="group-delete-tag-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3>Eliminar Etiqueta</h3>
+            <p>¿Estás seguro de que deseas eliminar esta etiqueta del grupo? Las tareas que la usen pasarán a estar sin etiqueta.</p>
+            <div class="modal-actions">
+                <button id="group-cancel-delete-tag-btn" class="btn-secondary">Cancelar</button>
+                <button id="group-confirm-delete-tag-btn" class="btn-danger">Sí, eliminar</button>
+            </div>
+        </div>
+    </div>
 
     <div id="create-group-modal" class="modal-overlay hidden">
         <div class="modal-card">

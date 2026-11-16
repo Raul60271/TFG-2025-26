@@ -32,7 +32,7 @@
         </div>
     </header>
 
-    <!-- NUEVO LAYOUT DE 3 COLUMNAS IDÉNTICO A GRUPOS -->
+    <!-- LAYOUT DE 3 COLUMNAS -->
     <main class="dashboard-grid-layout">
         
         <!-- COLUMNA 1: Calendario Lateral -->
@@ -51,9 +51,7 @@
                 <div class="calendar-weekdays">
                     <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
                 </div>
-                <div id="calendar-grid" class="calendar-grid">
-                    <!-- Los días se renderizan dinámicamente con JS -->
-                </div>
+                <div id="calendar-grid" class="calendar-grid"></div>
             </div>
         </aside>
 
@@ -81,15 +79,16 @@
                                 <span id="file-name-display" class="file-name" style="font-size: 13px; color: #666;">Ningún archivo...</span>
                             </div>
                             
+                            <!-- SELECTOR DE ETIQUETAS EN CREACIÓN -->
                             <div style="display: flex; align-items: center; gap: 10px;">
-                                <label style="font-size: 13px; font-weight: bold; color: #555;">🎨 Color:</label>
-                                <div class="color-dropdown-wrapper">
-                                    <button type="button" id="task-color-trigger" class="btn-secondary" style="display: flex; align-items: center; gap: 8px; height: 35px; box-sizing: border-box; cursor: pointer;">
-                                        <span id="task-color-preview-swatch" style="width: 16px; height: 16px; border-radius: 3px; background-color: #ffffff; border: 1px solid #ccc; display: inline-block;"></span>
-                                        <span id="task-color-preview-text">Blanco</span> ▾
+                                <label style="font-size: 13px; font-weight: bold; color: #555;">🏷️ Etiqueta:</label>
+                                <div class="tag-dropdown-wrapper">
+                                    <button type="button" id="task-tag-trigger" class="btn-secondary" style="display: flex; align-items: center; gap: 8px; height: 35px; box-sizing: border-box; cursor: pointer;">
+                                        <span id="task-tag-preview-dot" class="tag-color-dot" style="background-color: #ffffff; border: 1px solid #ccc;"></span>
+                                        <span id="task-tag-preview-text">Sin etiqueta</span> ▾
                                     </button>
-                                    <div id="task-color-dropdown" class="color-dropdown-content hidden"></div>
-                                    <input type="hidden" id="task-color-value" value="blanco">
+                                    <div id="task-tag-dropdown" class="tag-dropdown-content hidden"></div>
+                                    <input type="hidden" id="task-tag-value" value="">
                                 </div>
                             </div>
 
@@ -117,12 +116,13 @@
                             <option value="without" style="background: #fff; color: #333;">Sin archivo</option>
                         </select>
 
-                        <div class="color-dropdown-wrapper">
-                            <button type="button" id="filter-color-trigger" class="btn-secondary" style="display: flex; align-items: center; gap: 8px; height: 35px; box-sizing: border-box; cursor: pointer;">
-                                <span id="filter-color-preview-text">🎨 Colores (Todos)</span> ▾
+                        <!-- FILTRO DESPLEGABLE DE ETIQUETAS -->
+                        <div class="tag-dropdown-wrapper">
+                            <button type="button" id="filter-tag-trigger" class="btn-secondary" style="display: flex; align-items: center; gap: 8px; height: 35px; box-sizing: border-box; cursor: pointer;">
+                                <span id="filter-tag-preview-text">🏷️ Etiquetas (Todas)</span> ▾
                             </button>
-                            <div id="filter-color-dropdown" class="color-dropdown-content hidden" style="width: 150px;"></div>
-                            <input type="hidden" id="filter-color-value" value="all">
+                            <div id="filter-tag-dropdown" class="tag-dropdown-content hidden"></div>
+                            <input type="hidden" id="filter-tag-value" value="all">
                         </div>
 
                         <label class="btn-secondary" style="cursor: pointer; padding: 6px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; height: 35px; box-sizing: border-box; margin: 0; border-radius: 4px;" title="Filtrar por fecha concreta">
@@ -144,15 +144,36 @@
 
         </section>
 
-        <!-- COLUMNA 3: Margen de apoyo lateral derecho simétrico a grupos -->
+        <!-- COLUMNA 3: Margen de apoyo lateral derecho simétrico -->
         <aside id="right-margin-area">
-            <section class="task-form-card" style="height: fit-content; position: sticky; top: 90px; background: transparent; box-shadow: none; border: none; padding: 0;">
-                <!-- Espacio reservado o panel lateral de resumen personal opcional -->
-            </section>
+            <section class="task-form-card" style="height: fit-content; position: sticky; top: 90px; background: transparent; box-shadow: none; border: none; padding: 0;"></section>
         </aside>
 
     </main>
 
+    <!-- MODAL PARA CREAR NUEVA ETIQUETA -->
+    <div id="create-tag-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">🏷️ Nueva Etiqueta</h3>
+            <form id="create-tag-form">
+                <div class="form-group" style="text-align: left;">
+                    <label for="new-tag-name">Nombre de la etiqueta</label>
+                    <input type="text" id="new-tag-name" required placeholder="Ej. Urgente, Trabajo, Estudio...">
+                </div>
+                <div class="form-group" style="text-align: left;">
+                    <label>Color de la etiqueta</label>
+                    <div id="new-tag-color-grid" class="modal-color-grid"></div>
+                    <input type="hidden" id="new-tag-color-value" value="azul">
+                </div>
+                <div class="modal-actions" style="margin-top: 20px;">
+                    <button type="button" id="cancel-create-tag-btn" class="btn-secondary">Cancelar</button>
+                    <button type="submit" id="save-new-tag-btn" class="btn-primary" style="width: auto; flex-grow: 1;">Crear Etiqueta</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIRMACIÓN DE ELIMINAR TAREA -->
     <div id="delete-modal" class="modal-overlay hidden">
         <div class="modal-card">
             <h3>Eliminar Tarea</h3>
@@ -160,6 +181,18 @@
             <div class="modal-actions">
                 <button id="cancel-delete-btn" class="btn-secondary">Cancelar</button>
                 <button id="confirm-delete-btn" class="btn-danger">Sí, eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIRMACIÓN DE ELIMINAR ETIQUETA -->
+    <div id="delete-tag-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3>Eliminar Etiqueta</h3>
+            <p>¿Estás seguro de que deseas eliminar esta etiqueta? Las tareas que la usen pasarán a estar sin etiqueta.</p>
+            <div class="modal-actions">
+                <button id="cancel-delete-tag-btn" class="btn-secondary">Cancelar</button>
+                <button id="confirm-delete-tag-btn" class="btn-danger">Sí, eliminar</button>
             </div>
         </div>
     </div>
