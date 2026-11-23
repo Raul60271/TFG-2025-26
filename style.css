@@ -706,3 +706,77 @@ body {
     opacity: 1;
     background-color: #ffe6e6;
 }
+
+/* --- ESTILOS PARA MODAL DE TAREAS PERIÓDICAS --- */
+.recurrence-select-input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 14px;
+    color: #333;
+    background-color: #fff;
+    cursor: pointer;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.recurrence-select-input:focus {
+    border-color: #007bff;
+}
+
+.weekly-days-panel {
+    margin-top: 15px;
+    padding: 12px;
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.weekly-days-panel.hidden {
+    display: none;
+}
+
+.weekly-days-label {
+    font-size: 13px;
+    color: #555;
+    font-weight: 600;
+    text-align: center;
+}
+
+.weekly-days-grid {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+}
+
+.weekday-toggle-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid #ccc;
+    background-color: #ffffff;
+    color: #333;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: 0.15s ease;
+}
+
+.weekday-toggle-btn:hover {
+    background-color: #e2e6ea;
+}
+
+.weekday-toggle-btn.active {
+    background-color: #007bff;
+    color: white;
+    border-color: #0056b3;
+}

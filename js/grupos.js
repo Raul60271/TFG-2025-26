@@ -17,6 +17,205 @@ const TASK_COLORS = {
     rosa: { bg: '#e83e8c', text: '#ffffff', border: '#d91a72' }
 };
 
+const WEEKDAY_SHORT_NAMES = {
+    1: 'L',
+    2: 'M',
+    3: 'X',
+    4: 'J',
+    5: 'V',
+    6: 'S',
+    0: 'D'
+};
+
+// --- UTILIDADES DE FECHAS Y PERIODICIDAD ---
+function parseLocalDate(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d);
+}
+
+function formatLocalDate(dateObj) {
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+function isLeapYear(year) {
+    return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+}
+
+function addDays(dateStr, days) {
+    const d = parseLocalDate(dateStr);
+    d.setDate(d.getDate() + days);
+    return formatLocalDate(d);
+}
+
+function getNextWeeklyDate(fromDateStr, selectedDays, inclusive = false) {
+    if (!selectedDays || selectedDays.length === 0) return fromDateStr;
+    const base = parseLocalDate(fromDateStr);
+    const startOffset = inclusive ? 0 : 1;
+
+    for (let offset = startOffset; offset <= 7; offset++) {
+        const candidate = new Date(base);
+        candidate.setDate(base.getDate() + offset);
+        if (selectedDays.includes(candidate.getDay())) {
+            return formatLocalDate(candidate);
+        }
+    }
+    return fromDateStr;
+}
+
+function getNextYearlyDate(currentDateStr, anchorDateStr) {
+    const current = parseLocalDate(currentDateStr);
+    const anchor = parseLocalDate(anchorDateStr || currentDateStr);
+
+    const nextYear = current.getFullYear() + 1;
+    const targetMonth = anchor.getMonth();
+    let targetDay = anchor.getDate();
+
+    if (targetMonth === 1 && targetDay === 29 && !isLeapYear(nextYear)) {
+        targetDay = 28;
+    }
+
+    return formatLocalDate(new Date(nextYear, targetMonth, targetDay));
+}
+
+function calculateNextOccurrence(currentDueDateStr, recurrenceType, recurrenceDays, anchorDateStr) {
+    const baseDate = currentDueDateStr || formatLocalDate(new Date());
+
+    switch (recurrenceType) {
+        case 'daily':
+            return addDays(baseDate, 1);
+        case 'weekly':
+            return getNextWeeklyDate(baseDate, recurrenceDays, false);
+        case 'monthly':
+            return addDays(baseDate, 30);
+        case 'yearly':
+            return getNextYearlyDate(baseDate, anchorDateStr || baseDate);
+        default:
+            return baseDate;
+    }
+}
+
+function getUpcomingDate(dateStr, recurrenceType, recurrenceDays, anchorDateStr, minDateStr) {
+    if (!dateStr || !recurrenceType || recurrenceType === 'none') return dateStr;
+
+    let current = dateStr;
+    const anchor = anchorDateStr || dateStr;
+    let safetyCounter = 0;
+
+    if (recurrenceType === 'weekly') {
+        const days = Array.isArray(recurrenceDays) ? recurrenceDays : [];
+        if (days.length > 0 && current < minDateStr) {
+            current = getNextWeeklyDate(minDateStr, days, true);
+        }
+        return current;
+    }
+
+    while (current < minDateStr && safetyCounter < 500) {
+        current = calculateNextOccurrence(current, recurrenceType, recurrenceDays, anchor);
+        safetyCounter++;
+    }
+
+    return current;
+}
+
+async function syncRecurringGroupTasksToUpcomingDates(tasks) {
+    const todayStr = formatLocalDate(new Date());
+    const updatedTasks = [];
+
+    for (const task of tasks) {
+        const recType = task.recurrence_type || 'none';
+        if (recType !== 'none' && task.due_date && task.due_date < todayStr) {
+            const anchor = task.recurrence_anchor_date || task.due_date;
+            const upcomingDate = getUpcomingDate(
+                task.due_date,
+                recType,
+                task.recurrence_days,
+                anchor,
+                todayStr
+            );
+
+            if (upcomingDate !== task.due_date) {
+                const { error } = await supabase
+                    .from('group_tasks')
+                    .update({
+                        due_date: upcomingDate,
+                        recurrence_anchor_date: anchor,
+                        is_completed: false
+                    })
+                    .eq('id', task.id);
+
+                if (!error) {
+                    task.due_date = upcomingDate;
+                    task.recurrence_anchor_date = anchor;
+                    task.is_completed = false;
+                }
+            }
+        }
+        updatedTasks.push(task);
+    }
+
+    return updatedTasks;
+}
+
+function doesTaskOccurOnDate(task, targetDateStr) {
+    if (!task.due_date) return false;
+    if (task.due_date === targetDateStr) return true;
+
+    const type = task.recurrence_type || 'none';
+    if (type === 'none' || task.is_completed) return false;
+
+    const start = parseLocalDate(task.due_date);
+    const target = parseLocalDate(targetDateStr);
+    if (target < start) return false;
+
+    if (type === 'daily') {
+        return true;
+    }
+
+    if (type === 'weekly') {
+        const days = Array.isArray(task.recurrence_days) ? task.recurrence_days : [];
+        return days.includes(target.getDay());
+    }
+
+    if (type === 'monthly') {
+        const diffTime = target.getTime() - start.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays % 30 === 0;
+    }
+
+    if (type === 'yearly') {
+        const anchor = parseLocalDate(task.recurrence_anchor_date || task.due_date);
+        const anchorMonth = anchor.getMonth();
+        let expectedDay = anchor.getDate();
+
+        if (anchorMonth === 1 && expectedDay === 29 && !isLeapYear(target.getFullYear())) {
+            expectedDay = 28;
+        }
+
+        return target.getMonth() === anchorMonth && target.getDate() === expectedDay;
+    }
+
+    return false;
+}
+
+function getRecurrenceBadgeText(task) {
+    const type = task.recurrence_type || 'none';
+    if (type === 'none') return '';
+
+    if (type === 'daily') return '🔁 1 vez al día';
+    if (type === 'weekly') {
+        const order = [1, 2, 3, 4, 5, 6, 0];
+        const days = Array.isArray(task.recurrence_days) ? task.recurrence_days : [];
+        const sortedLabels = order.filter(d => days.includes(d)).map(d => WEEKDAY_SHORT_NAMES[d]);
+        return sortedLabels.length > 0 ? `🔁 Semanal (${sortedLabels.join(', ')})` : '🔁 1 vez a la semana';
+    }
+    if (type === 'monthly') return '🔁 Cada 30 días';
+    if (type === 'yearly') return '🔁 1 vez al año';
+    return '';
+}
+
 // --- REFERENCIAS HTML GENERALES ---
 const userNameSpan = document.getElementById('user-name');
 const logoutBtn = document.getElementById('logout-btn');
@@ -41,6 +240,20 @@ const prevMonthBtn = document.getElementById('prev-month-btn');
 const nextMonthBtn = document.getElementById('next-month-btn');
 
 let currentCalendarDate = new Date();
+
+// Referencias de Periodicidad en Grupo (Botón y Modal)
+const openGroupRecurrenceModalBtn = document.getElementById('open-group-recurrence-modal-btn');
+const groupTaskRecurrenceInput = document.getElementById('group-task-recurrence-value');
+const groupTaskRecurrencePreviewText = document.getElementById('group-task-recurrence-preview-text');
+
+const groupRecurrenceModal = document.getElementById('group-recurrence-modal');
+const groupModalRecurrenceSelect = document.getElementById('group-modal-recurrence-select');
+const groupModalWeeklyDaysPanel = document.getElementById('group-modal-weekly-days-panel');
+const groupCancelRecurrenceBtn = document.getElementById('group-cancel-recurrence-btn');
+const groupSaveRecurrenceBtn = document.getElementById('group-save-recurrence-btn');
+
+let savedGroupWeeklyDays = [];
+let tempGroupWeeklyDays = [];
 
 // Modal de eliminación de tareas
 const deleteModal = document.getElementById('delete-modal');
@@ -137,6 +350,100 @@ function showToast(message, type) {
     setTimeout(() => { toastNotification.classList.remove('show'); }, 3500);
 }
 
+// --- MODAL Y SELECTOR DE TAREAS PERIÓDICAS DE GRUPO ---
+function syncGroupModalWeeklyButtons() {
+    if (!groupModalWeeklyDaysPanel) return;
+    groupModalWeeklyDaysPanel.querySelectorAll('.weekday-toggle-btn').forEach(btn => {
+        const dayNum = parseInt(btn.getAttribute('data-day'), 10);
+        btn.classList.toggle('active', tempGroupWeeklyDays.includes(dayNum));
+    });
+}
+
+function initGroupRecurrenceModal() {
+    if (!openGroupRecurrenceModalBtn || !groupRecurrenceModal) return;
+
+    openGroupRecurrenceModalBtn.addEventListener('click', () => {
+        const currentType = groupTaskRecurrenceInput.value || 'none';
+        groupModalRecurrenceSelect.value = currentType;
+        tempGroupWeeklyDays = [...savedGroupWeeklyDays];
+
+        if (currentType === 'weekly') {
+            groupModalWeeklyDaysPanel.classList.remove('hidden');
+        } else {
+            groupModalWeeklyDaysPanel.classList.add('hidden');
+        }
+
+        syncGroupModalWeeklyButtons();
+        groupRecurrenceModal.classList.remove('hidden');
+    });
+
+    groupModalRecurrenceSelect.addEventListener('change', () => {
+        if (groupModalRecurrenceSelect.value === 'weekly') {
+            groupModalWeeklyDaysPanel.classList.remove('hidden');
+        } else {
+            groupModalWeeklyDaysPanel.classList.add('hidden');
+        }
+    });
+
+    if (groupModalWeeklyDaysPanel) {
+        groupModalWeeklyDaysPanel.querySelectorAll('.weekday-toggle-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const dayNum = parseInt(btn.getAttribute('data-day'), 10);
+                if (tempGroupWeeklyDays.includes(dayNum)) {
+                    tempGroupWeeklyDays = tempGroupWeeklyDays.filter(d => d !== dayNum);
+                } else {
+                    tempGroupWeeklyDays.push(dayNum);
+                }
+                syncGroupModalWeeklyButtons();
+            });
+        });
+    }
+
+    groupCancelRecurrenceBtn.addEventListener('click', () => {
+        groupRecurrenceModal.classList.add('hidden');
+    });
+
+    groupSaveRecurrenceBtn.addEventListener('click', () => {
+        const chosenType = groupModalRecurrenceSelect.value;
+        if (chosenType === 'weekly' && tempGroupWeeklyDays.length === 0) {
+            showToast('Selecciona al menos un día de la semana', 'error');
+            return;
+        }
+
+        groupTaskRecurrenceInput.value = chosenType;
+        savedGroupWeeklyDays = chosenType === 'weekly' ? [...tempGroupWeeklyDays] : [];
+        updateGroupRecurrencePreviewLabel();
+        groupRecurrenceModal.classList.add('hidden');
+    });
+}
+
+function updateGroupRecurrencePreviewLabel() {
+    const val = groupTaskRecurrenceInput.value;
+    if (val === 'none') {
+        groupTaskRecurrencePreviewText.textContent = 'No repetir';
+    } else if (val === 'daily') {
+        groupTaskRecurrencePreviewText.textContent = '1 vez al día';
+    } else if (val === 'weekly') {
+        const order = [1, 2, 3, 4, 5, 6, 0];
+        const sortedLabels = order.filter(d => savedGroupWeeklyDays.includes(d)).map(d => WEEKDAY_SHORT_NAMES[d]);
+        groupTaskRecurrencePreviewText.textContent = sortedLabels.length > 0
+            ? `Semanal (${sortedLabels.join(',')})`
+            : '1 vez a la semana';
+    } else if (val === 'monthly') {
+        groupTaskRecurrencePreviewText.textContent = '1 vez al mes';
+    } else if (val === 'yearly') {
+        groupTaskRecurrencePreviewText.textContent = '1 vez al año';
+    }
+}
+
+function resetGroupRecurrencePicker() {
+    if (!groupTaskRecurrenceInput) return;
+    groupTaskRecurrenceInput.value = 'none';
+    savedGroupWeeklyDays = [];
+    tempGroupWeeklyDays = [];
+    updateGroupRecurrencePreviewLabel();
+}
+
 // --- INICIALIZAR PALETA DE COLORES EN EL MODAL DE NUEVA ETIQUETA DE GRUPO ---
 function initGroupNewTagColorGrid() {
     if (!groupNewTagColorGrid) return;
@@ -183,11 +490,9 @@ async function loadGroupTags(groupId) {
 function renderGroupTagDropdowns() {
     const isAdmin = currentGroup && currentGroup.admin_id === currentUserId;
 
-    // 1. Desplegable en el formulario de creación de tarea de grupo
     if (groupTaskTagDropdown) {
         groupTaskTagDropdown.innerHTML = '';
 
-        // Botón superior para añadir etiqueta nueva (SOLO ADMINISTRADORES)
         if (isAdmin) {
             const addNewBtn = document.createElement('button');
             addNewBtn.type = 'button';
@@ -201,7 +506,6 @@ function renderGroupTagDropdowns() {
             groupTaskTagDropdown.appendChild(addNewBtn);
         }
 
-        // Opción neutra: Sin etiqueta
         const noneItem = document.createElement('button');
         noneItem.type = 'button';
         noneItem.className = `tag-option-item ${groupTaskTagInput.value === '' ? 'selected' : ''}`;
@@ -215,7 +519,6 @@ function renderGroupTagDropdowns() {
         });
         groupTaskTagDropdown.appendChild(noneItem);
 
-        // Listado de etiquetas del grupo (botón de eliminar SOLO para ADMINISTRADORES)
         groupTags.forEach(tag => {
             const colorStyle = TASK_COLORS[tag.color] || TASK_COLORS['blanco'];
 
@@ -254,11 +557,9 @@ function renderGroupTagDropdowns() {
         });
     }
 
-    // 2. Desplegable en la barra de filtros del grupo
     if (groupFilterTagDropdown) {
         groupFilterTagDropdown.innerHTML = '';
 
-        // Opción: Todas las etiquetas
         const allItem = document.createElement('button');
         allItem.type = 'button';
         allItem.className = `tag-option-item ${groupFilterTagInput.value === 'all' ? 'selected' : ''}`;
@@ -272,7 +573,6 @@ function renderGroupTagDropdowns() {
         });
         groupFilterTagDropdown.appendChild(allItem);
 
-        // Opción: Sin etiqueta
         const untaggedItem = document.createElement('button');
         untaggedItem.type = 'button';
         untaggedItem.className = `tag-option-item ${groupFilterTagInput.value === 'none' ? 'selected' : ''}`;
@@ -289,7 +589,6 @@ function renderGroupTagDropdowns() {
         });
         groupFilterTagDropdown.appendChild(untaggedItem);
 
-        // Listado de etiquetas pertenecientes al grupo
         groupTags.forEach(tag => {
             const colorStyle = TASK_COLORS[tag.color] || TASK_COLORS['blanco'];
             const item = document.createElement('button');
@@ -327,7 +626,6 @@ function selectGroupCreationTag(tag) {
     renderGroupTagDropdowns();
 }
 
-// Eventos de apertura/cierre de desplegables de etiquetas de grupo
 if (groupTaskTagTrigger) {
     groupTaskTagTrigger.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -574,8 +872,8 @@ async function selectGroup(group) {
     if (groupSearchTaskInput) groupSearchTaskInput.value = '';
     if (groupFilterFileSelect) groupFilterFileSelect.value = 'all';
     
-    // Resetear selectores de etiqueta al cambiar de grupo
     selectGroupCreationTag(null);
+    resetGroupRecurrencePicker();
     if (groupFilterTagInput) groupFilterTagInput.value = 'all';
     if (groupFilterTagPreviewText) groupFilterTagPreviewText.textContent = '🏷️ Etiquetas (Todas)';
 
@@ -608,7 +906,7 @@ function renderGroupCalendar() {
     const adjustedFirstDay = (firstDayIndex === 0) ? 6 : firstDayIndex - 1;
     const totalDays = new Date(year, month + 1, 0).getDate();
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = formatLocalDate(new Date());
     const selectedDateFilter = groupFilterDateInput ? groupFilterDateInput.value : '';
 
     for (let i = 0; i < adjustedFirstDay; i++) {
@@ -635,7 +933,7 @@ function renderGroupCalendar() {
             dayCell.classList.add('selected');
         }
 
-        const hasTaskOnThisDay = allGroupTasks.some(task => task.due_date === dateString);
+        const hasTaskOnThisDay = allGroupTasks.some(task => doesTaskOccurOnDate(task, dateString));
         if (hasTaskOnThisDay) {
             dayCell.classList.add('has-task');
         }
@@ -728,7 +1026,7 @@ async function loadGroupTasks() {
 
     if (error) { showToast('Error al cargar tareas', 'error'); return; }
 
-    allGroupTasks = tasks || [];
+    allGroupTasks = await syncRecurringGroupTasksToUpcomingDates(tasks || []);
     applyGroupFiltersAndRender();
     renderGroupCalendar(); 
 }
@@ -759,13 +1057,62 @@ function applyGroupFiltersAndRender() {
 
         let matchesDate = true;
         if (dateFilter) {
-            matchesDate = task.due_date === dateFilter;
+            matchesDate = doesTaskOccurOnDate(task, dateFilter);
         }
 
         return matchesTitle && matchesFile && matchesTag && matchesDate;
     });
 
     renderGroupTasks(filteredTasks);
+}
+
+// --- COMPLETAR TAREA DE GRUPO (CON REPROGRAMACIÓN PERIÓDICA) ---
+async function toggleGroupTaskCompletion(task) {
+    const recType = task.recurrence_type || 'none';
+
+    if (recType !== 'none') {
+        const todayStr = formatLocalDate(new Date());
+        let nextDate = calculateNextOccurrence(
+            task.due_date,
+            recType,
+            task.recurrence_days,
+            task.recurrence_anchor_date
+        );
+        nextDate = getUpcomingDate(
+            nextDate,
+            recType,
+            task.recurrence_days,
+            task.recurrence_anchor_date,
+            todayStr
+        );
+
+        const { error: updErr } = await supabase
+            .from('group_tasks')
+            .update({
+                due_date: nextDate,
+                is_completed: false
+            })
+            .eq('id', task.id);
+
+        if (updErr) {
+            showToast('Error al reprogramar la tarea periódica', 'error');
+        } else {
+            showToast(`🔁 Tarea completada. Próxima fecha: ${nextDate}`, 'success');
+            loadGroupTasks();
+        }
+        return;
+    }
+
+    const { error: updErr } = await supabase
+        .from('group_tasks')
+        .update({ is_completed: !task.is_completed })
+        .eq('id', task.id);
+
+    if (updErr) {
+        showToast('No se pudo cambiar el estado', 'error');
+    } else {
+        loadGroupTasks();
+    }
 }
 
 function renderGroupTasks(tasks) {
@@ -776,7 +1123,7 @@ function renderGroupTasks(tasks) {
     }
 
     const isAdmin = currentGroup.admin_id === currentUserId;
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = formatLocalDate(new Date());
 
     tasks.forEach(task => {
         const canModify = isAdmin || task.assigned_to === currentUserId;
@@ -784,7 +1131,6 @@ function renderGroupTasks(tasks) {
         const item = document.createElement('div');
         item.className = `task-item ${task.is_completed ? 'completed' : ''}`;
 
-        // Obtener color desde la etiqueta asociada o usar blanco por defecto
         const colorKey = (task.tags && task.tags.color) ? task.tags.color : 'blanco';
         const styleConfig = TASK_COLORS[colorKey] || TASK_COLORS['blanco'];
         
@@ -792,12 +1138,21 @@ function renderGroupTasks(tasks) {
         item.style.color = styleConfig.text;
         item.style.borderLeft = `4px solid ${styleConfig.border}`;
 
-        // Insignia con el nombre de la etiqueta si existe
         let tagBadgeMarkup = '';
         if (task.tags && task.tags.name) {
             tagBadgeMarkup = `
                 <span style="font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.08); color: inherit; border: 1px solid rgba(0,0,0,0.15);">
                     🏷️ ${task.tags.name}
+                </span>
+            `;
+        }
+
+        let recurrenceBadgeMarkup = '';
+        const recText = getRecurrenceBadgeText(task);
+        if (recText) {
+            recurrenceBadgeMarkup = `
+                <span style="font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.08); color: inherit; border: 1px solid rgba(0,0,0,0.15);">
+                    ${recText}
                 </span>
             `;
         }
@@ -813,7 +1168,7 @@ function renderGroupTasks(tasks) {
                 : 'background: rgba(0,0,0,0.05); color: inherit; border: 1px solid rgba(0,0,0,0.1);';
             
             dueDateMarkup = `
-                <span style="font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; ${dateStyle}" title="${isOverdue ? '¡Fecha límite vencida!' : 'Fecha límite'}">
+                <span style="font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; ${dateStyle}" title="${isOverdue ? '¡Fecha límite vencida!' : 'Próxima fecha'}">
                     📅 ${task.due_date} ${isOverdue ? '⚠️' : ''}
                 </span>
             `;
@@ -843,6 +1198,7 @@ function renderGroupTasks(tasks) {
                 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
                     <h4 class="task-title" style="margin: 0; color: inherit;">${task.title}</h4>
                     ${tagBadgeMarkup}
+                    ${recurrenceBadgeMarkup}
                     ${dueDateMarkup}
                 </div>
                 ${task.description ? `<p style="color: inherit; opacity: 0.85;">${task.description}</p>` : ''}
@@ -868,7 +1224,7 @@ function renderGroupTasks(tasks) {
                     </label>
                 ` : ''}
                 
-                <button class="btn-icon complete-btn" title="${task.is_completed ? 'Desmarcar' : 'Completar'}" style="color: inherit;" ${!canModify ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
+                <button class="btn-icon complete-btn" title="${task.recurrence_type && task.recurrence_type !== 'none' ? 'Completar y programar siguiente fecha' : (task.is_completed ? 'Desmarcar' : 'Completar')}" style="color: inherit;" ${!canModify ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
                     ${task.is_completed ? '✅' : '⬜'}
                 </button>
                 
@@ -903,11 +1259,7 @@ function renderGroupTasks(tasks) {
         const completeBtn = item.querySelector('.complete-btn');
         completeBtn.addEventListener('click', async () => {
             if (!canModify) return;
-            const { error: updErr } = await supabase.from('group_tasks')
-                .update({ is_completed: !task.is_completed })
-                .eq('id', task.id);
-            if (updErr) { showToast('No se pudo cambiar el estado', 'error'); } 
-            else { loadGroupTasks(); }
+            await toggleGroupTaskCompletion(task);
         });
 
         if (canModify) {
@@ -963,7 +1315,6 @@ if (groupClearFiltersBtn) {
         if (groupSearchTaskInput) groupSearchTaskInput.value = '';
         if (groupFilterFileSelect) groupFilterFileSelect.value = 'all';
         
-        // Resetear filtro de etiquetas del grupo
         if (groupFilterTagInput) groupFilterTagInput.value = 'all';
         if (groupFilterTagPreviewText) groupFilterTagPreviewText.textContent = '🏷️ Etiquetas (Todas)';
         renderGroupTagDropdowns();
@@ -977,6 +1328,13 @@ if (groupClearFiltersBtn) {
 // --- CREAR TAREA DENTRO DEL GRUPO ---
 groupTaskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    const recurrenceType = groupTaskRecurrenceInput ? groupTaskRecurrenceInput.value : 'none';
+    if (recurrenceType === 'weekly' && savedGroupWeeklyDays.length === 0) {
+        showToast('Selecciona al menos un día de la semana para repetir', 'error');
+        return;
+    }
+
     addGroupTaskBtn.disabled = true;
     addGroupTaskBtn.textContent = 'Añadiendo...';
 
@@ -984,7 +1342,22 @@ groupTaskForm.addEventListener('submit', async (e) => {
     const description = groupTaskDesc.value.trim();
     const assignedTo = groupTaskAssignee.value; 
     const tagId = groupTaskTagInput && groupTaskTagInput.value ? groupTaskTagInput.value : null;
-    const dueDate = groupTaskDateInput.value || null;
+    const todayStr = formatLocalDate(new Date());
+
+    let dueDate = groupTaskDateInput.value || null;
+    let anchorDate = null;
+
+    if (recurrenceType !== 'none') {
+        const baseDate = dueDate || todayStr;
+        if (recurrenceType === 'weekly') {
+            dueDate = getNextWeeklyDate(baseDate, savedGroupWeeklyDays, true);
+        } else {
+            dueDate = baseDate;
+        }
+        anchorDate = dueDate;
+        dueDate = getUpcomingDate(dueDate, recurrenceType, savedGroupWeeklyDays, anchorDate, todayStr);
+    }
+
     const file = groupTaskFile.files[0];
 
     let fileUrl = null;
@@ -1012,6 +1385,9 @@ groupTaskForm.addEventListener('submit', async (e) => {
             file_url: fileUrl,
             file_name: fileNameStr,
             due_date: dueDate,
+            recurrence_type: recurrenceType,
+            recurrence_days: recurrenceType === 'weekly' ? [...savedGroupWeeklyDays] : null,
+            recurrence_anchor_date: anchorDate,
             is_completed: false
         }]);
 
@@ -1021,6 +1397,7 @@ groupTaskForm.addEventListener('submit', async (e) => {
         groupTaskForm.reset();
         groupFileNamePreview.textContent = 'Ningún archivo...';
         selectGroupCreationTag(null);
+        resetGroupRecurrencePicker();
         loadGroupTasks();
     } catch (err) { showToast(err.message, 'error'); }
     finally {
@@ -1254,6 +1631,7 @@ confirmKickBtn.addEventListener('click', async () => {
 
 // --- INICIALIZACIÓN ---
 window.addEventListener('DOMContentLoaded', async () => {
+    initGroupRecurrenceModal();
     initGroupNewTagColorGrid();
     const uId = await checkAuthAndLoadProfile();
     if (uId) loadGroups();

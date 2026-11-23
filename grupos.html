@@ -93,6 +93,7 @@
                                 </select>
                             </div>
 
+                            <!-- FILA 1 DE OPCIONES: Archivo y Etiqueta -->
                             <div class="form-group" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
                                 <div style="display: flex; align-items: center; gap: 10px;">
                                     <label class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px;">
@@ -114,16 +115,25 @@
                                         <input type="hidden" id="group-task-tag-value" value="">
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- FILA 2 DE OPCIONES: Repetición periódica junto a la Fecha -->
+                            <div class="form-group" style="display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap;">
+                                <button type="button" id="open-group-recurrence-modal-btn" class="btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; height: 35px; box-sizing: border-box; border: none; cursor: pointer; font-size: 13px;" title="Configurar repetición periódica">
+                                    <span>🔁</span>
+                                    <span id="group-task-recurrence-preview-text">No repetir</span>
+                                </button>
+                                <input type="hidden" id="group-task-recurrence-value" value="none">
 
                                 <div>
-                                    <label class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+                                    <label class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; height: 35px; box-sizing: border-box; margin: 0;">
                                         📅 
                                         <input type="date" id="group-task-date" style="background: transparent; border: none; font-family: inherit; font-size: 13px; color: #333; cursor: pointer; outline: none;">
                                     </label>
                                 </div>
                             </div>
 
-                            <button type="submit" id="add-group-task-btn" class="btn-primary">Añadir Tarea al Grupo</button>
+                            <button type="submit" id="add-group-task-btn" class="btn-primary" style="margin-top: 10px;">Añadir Tarea al Grupo</button>
                         </form>
                     </div>
 
@@ -196,6 +206,42 @@
         </aside>
 
     </main>
+
+    <!-- MODAL PARA CONFIGURAR TAREA PERIÓDICA DE GRUPO -->
+    <div id="group-recurrence-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">🔁 Repetición de Tarea</h3>
+            <div class="form-group" style="text-align: left; margin-top: 15px;">
+                <label for="group-modal-recurrence-select">Frecuencia de repetición</label>
+                <select id="group-modal-recurrence-select" class="recurrence-select-input">
+                    <option value="none">No repetir</option>
+                    <option value="daily">1 vez al día</option>
+                    <option value="weekly">1 vez a la semana</option>
+                    <option value="monthly">1 vez al mes (cada 30 días)</option>
+                    <option value="yearly">1 vez al año</option>
+                </select>
+            </div>
+
+            <!-- Subpanel de días de la semana -->
+            <div id="group-modal-weekly-days-panel" class="weekly-days-panel hidden">
+                <span class="weekly-days-label">Selecciona los días de la semana:</span>
+                <div class="weekly-days-grid">
+                    <button type="button" class="weekday-toggle-btn" data-day="1" title="Lunes">L</button>
+                    <button type="button" class="weekday-toggle-btn" data-day="2" title="Martes">M</button>
+                    <button type="button" class="weekday-toggle-btn" data-day="3" title="Miércoles">X</button>
+                    <button type="button" class="weekday-toggle-btn" data-day="4" title="Jueves">J</button>
+                    <button type="button" class="weekday-toggle-btn" data-day="5" title="Viernes">V</button>
+                    <button type="button" class="weekday-toggle-btn" data-day="6" title="Sábado">S</button>
+                    <button type="button" class="weekday-toggle-btn" data-day="0" title="Domingo">D</button>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button type="button" id="group-cancel-recurrence-btn" class="btn-secondary">Cancelar</button>
+                <button type="button" id="group-save-recurrence-btn" class="btn-primary" style="width: auto; flex-grow: 1;">Guardar</button>
+            </div>
+        </div>
+    </div>
 
     <!-- MODAL PARA CREAR NUEVA ETIQUETA DE GRUPO -->
     <div id="group-create-tag-modal" class="modal-overlay hidden">
