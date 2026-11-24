@@ -241,6 +241,20 @@ const nextMonthBtn = document.getElementById('next-month-btn');
 
 let currentCalendarDate = new Date();
 
+// Referencias de Múltiples Archivos en Grupo (Botón y Modal)
+const openGroupFilesModalBtn = document.getElementById('open-group-files-modal-btn');
+const groupFilesCountDisplay = document.getElementById('group-files-count-display');
+const groupTaskFilesModal = document.getElementById('group-task-files-modal');
+const groupTaskFileInput = document.getElementById('group-task-file-input');
+const groupModalSelectedFilesList = document.getElementById('group-modal-selected-files-list');
+const groupCancelFilesModalBtn = document.getElementById('group-cancel-files-modal-btn');
+const groupAcceptFilesModalBtn = document.getElementById('group-accept-files-modal-btn');
+const groupTriggerSelectFileBtn = document.getElementById('group-trigger-select-file-btn');
+
+let confirmedGroupPendingFiles = []; // File[] para creación de nueva tarea en el grupo
+let tempGroupPendingFiles = []; // { kind: 'new'|'existing', file?, record?, name }
+let editingGroupTaskForFiles = null; // null = modo creación, objeto task = modo edición de tarea existente
+
 // Referencias de Periodicidad en Grupo (Botón y Modal)
 const openGroupRecurrenceModalBtn = document.getElementById('open-group-recurrence-modal-btn');
 const groupTaskRecurrenceInput = document.getElementById('group-task-recurrence-value');
@@ -259,7 +273,7 @@ let tempGroupWeeklyDays = [];
 const deleteModal = document.getElementById('delete-modal');
 const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
 const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
-let taskToDeleteId = null;
+let taskToDelete = null;
 
 // Modal de expulsión de miembros
 const kickMemberModal = document.getElementById('kick-member-modal');
@@ -303,9 +317,7 @@ const groupTaskForm = document.getElementById('group-task-form');
 const groupTaskTitle = document.getElementById('group-task-title');
 const groupTaskDesc = document.getElementById('group-task-desc');
 const groupTaskAssignee = document.getElementById('group-task-assignee');
-const groupTaskFile = document.getElementById('group-task-file');
 const groupTaskDateInput = document.getElementById('group-task-date');
-const groupFileNamePreview = document.getElementById('group-file-name-preview');
 const groupTasksList = document.getElementById('group-tasks-list');
 const addGroupTaskBtn = document.getElementById('add-group-task-btn');
 
@@ -348,6 +360,198 @@ function showToast(message, type) {
     toastNotification.textContent = message;
     toastNotification.className = `toast show ${type}`;
     setTimeout(() => { toastNotification.classList.remove('show'); }, 3500);
+}
+
+// --- MODAL Y GESTIÓN DE MÚLTIPLES ARCHIVOS EN GRUPO (CREACIÓN Y EDICIÓN) ---
+function updateGroupFilesCountDisplay() {
+    if (!groupFilesCountDisplay) return;
+    if (confirmedGroupPendingFiles.length === 0) {
+        groupFilesCountDisplay.textContent = 'Ningún archivo...';
+    } else if (confirmedGroupPendingFiles.length === 1) {
+        groupFilesCountDisplay.textContent = `1 archivo listo (${confirmedGroupPendingFiles[0].name})`;
+    } else {
+        groupFilesCountDisplay.textContent = `${confirmedGroupPendingFiles.length} archivos listos`;
+    }
+}
+
+function renderGroupTempFilesList() {
+    if (!groupModalSelectedFilesList) return;
+    groupModalSelectedFilesList.innerHTML = '';
+
+    if (tempGroupPendingFiles.length === 0) {
+        groupModalSelectedFilesList.innerHTML = '<li style="padding: 12px; text-align: center; color: #888; font-size: 13px; font-style: italic;">Ningún archivo seleccionado todavía.</li>';
+        return;
+    }
+
+    tempGroupPendingFiles.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; background: #fff;';
+
+        const nameSpan = document.createElement('span');
+        const badgeLabel = item.kind === 'existing' ? ' (guardado)' : '';
+        nameSpan.textContent = `📄 ${item.name}${badgeLabel}`;
+        nameSpan.style.cssText = 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 85%;';
+        nameSpan.title = item.name;
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.textContent = '✕';
+        removeBtn.title = 'Quitar archivo';
+        removeBtn.style.cssText = 'background: none; border: none; color: #dc3545; font-weight: bold; cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px;';
+        removeBtn.addEventListener('click', () => {
+            tempGroupPendingFiles.splice(index, 1);
+            renderGroupTempFilesList();
+        });
+
+        li.appendChild(nameSpan);
+        li.appendChild(removeBtn);
+        groupModalSelectedFilesList.appendChild(li);
+    });
+}
+
+function openGroupFilesModalForCreate() {
+    editingGroupTaskForFiles = null;
+    tempGroupPendingFiles = confirmedGroupPendingFiles.map(file => ({
+        kind: 'new',
+        file,
+        name: file.name
+    }));
+    renderGroupTempFilesList();
+    groupTaskFilesModal.classList.remove('hidden');
+}
+
+function openGroupFilesModalForTask(task) {
+    editingGroupTaskForFiles = task;
+    const existingFiles = Array.isArray(task.files) ? task.files : [];
+    tempGroupPendingFiles = existingFiles.map(rec => ({
+        kind: 'existing',
+        record: rec,
+        name: rec.name
+    }));
+    renderGroupTempFilesList();
+    groupTaskFilesModal.classList.remove('hidden');
+}
+
+function closeGroupFilesModal() {
+    tempGroupPendingFiles = [];
+    editingGroupTaskForFiles = null;
+    if (groupTaskFileInput) groupTaskFileInput.value = '';
+    renderGroupTempFilesList();
+    groupTaskFilesModal.classList.add('hidden');
+}
+
+function initGroupFilesModal() {
+    if (!openGroupFilesModalBtn || !groupTaskFilesModal) return;
+
+    openGroupFilesModalBtn.addEventListener('click', () => {
+        openGroupFilesModalForCreate();
+    });
+
+    groupTriggerSelectFileBtn.addEventListener('click', () => {
+        groupTaskFileInput.value = '';
+        groupTaskFileInput.click();
+    });
+
+    groupTaskFileInput.addEventListener('change', (e) => {
+        const pickedFiles = Array.from(e.target.files || []);
+        if (pickedFiles.length === 0) return;
+
+        pickedFiles.forEach(file => {
+            const exists = tempGroupPendingFiles.some(item => {
+                if (item.kind === 'new') {
+                    return (
+                        item.file.name === file.name &&
+                        item.file.size === file.size &&
+                        item.file.lastModified === file.lastModified
+                    );
+                }
+                return item.record.name === file.name;
+            });
+
+            if (!exists) {
+                tempGroupPendingFiles.push({
+                    kind: 'new',
+                    file,
+                    name: file.name
+                });
+            }
+        });
+
+        renderGroupTempFilesList();
+    });
+
+    groupAcceptFilesModalBtn.addEventListener('click', async () => {
+        if (editingGroupTaskForFiles) {
+            await saveEditedGroupTaskFiles(editingGroupTaskForFiles, [...tempGroupPendingFiles]);
+            closeGroupFilesModal();
+            return;
+        }
+
+        confirmedGroupPendingFiles = tempGroupPendingFiles
+            .filter(item => item.kind === 'new')
+            .map(item => item.file);
+        updateGroupFilesCountDisplay();
+        closeGroupFilesModal();
+    });
+
+    groupCancelFilesModalBtn.addEventListener('click', () => {
+        closeGroupFilesModal();
+    });
+}
+
+function resetGroupPendingFiles() {
+    confirmedGroupPendingFiles = [];
+    tempGroupPendingFiles = [];
+    editingGroupTaskForFiles = null;
+    if (groupTaskFileInput) groupTaskFileInput.value = '';
+    updateGroupFilesCountDisplay();
+    renderGroupTempFilesList();
+}
+
+// --- HELPERS DE STORAGE PARA ARCHIVOS DE GRUPO ---
+function extractGroupStoragePath(fileRecord) {
+    if (!fileRecord) return null;
+    if (fileRecord.path) return fileRecord.path;
+    if (fileRecord.url) {
+        const parts = fileRecord.url.split('/group-files/');
+        if (parts.length === 2) return parts[1];
+    }
+    return null;
+}
+
+async function deleteGroupFilesFromStorage(fileRecords) {
+    if (!Array.isArray(fileRecords) || fileRecords.length === 0) return;
+    const paths = fileRecords
+        .map(extractGroupStoragePath)
+        .filter(Boolean);
+
+    if (paths.length > 0) {
+        await supabase.storage.from('group-files').remove(paths);
+    }
+}
+
+async function uploadSingleGroupFileToStorage(groupId, file) {
+    const fileExt = file.name.split('.').pop();
+    const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `${groupId}/${uniqueFileName}`;
+
+    const { error: uploadError } = await supabase.storage
+        .from('group-files')
+        .upload(filePath, file);
+
+    if (uploadError) {
+        throw new Error(`Error al subir "${file.name}"`);
+    }
+
+    const { data: publicUrlData } = supabase.storage
+        .from('group-files')
+        .getPublicUrl(filePath);
+
+    return {
+        name: file.name,
+        url: publicUrlData.publicUrl,
+        path: filePath
+    };
 }
 
 // --- MODAL Y SELECTOR DE TAREAS PERIÓDICAS DE GRUPO ---
@@ -792,11 +996,6 @@ document.addEventListener('click', (e) => {
 });
 logoutBtn.addEventListener('click', async () => { await supabase.auth.signOut(); window.location.href = 'index.html'; });
 
-// --- MOSTRAR NOMBRE DEL ARCHIVO EN FORMULARIO ---
-groupTaskFile.addEventListener('change', () => {
-    groupFileNamePreview.textContent = groupTaskFile.files[0] ? groupTaskFile.files[0].name : 'Ningún archivo...';
-});
-
 // --- CONTROL DE MODALES SIMPLES ---
 openGroupModalBtn.addEventListener('click', () => { createGroupForm.reset(); createGroupModal.classList.remove('hidden'); });
 cancelGroupBtn.addEventListener('click', () => createGroupModal.classList.add('hidden'));
@@ -872,6 +1071,7 @@ async function selectGroup(group) {
     if (groupSearchTaskInput) groupSearchTaskInput.value = '';
     if (groupFilterFileSelect) groupFilterFileSelect.value = 'all';
     
+    resetGroupPendingFiles();
     selectGroupCreationTag(null);
     resetGroupRecurrencePicker();
     if (groupFilterTagInput) groupFilterTagInput.value = 'all';
@@ -1016,17 +1216,22 @@ async function loadGroupMembers(group) {
     }
 }
 
-// --- CARGAR Y FILTRAR TAREAS DEL GRUPO ---
+// --- CARGAR Y FILTRAR TAREAS DEL GRUPO (CON ETIQUETAS Y ARCHIVOS RELACIONADOS) ---
 async function loadGroupTasks() {
     const { data: tasks, error } = await supabase
         .from('group_tasks')
-        .select('*, tags(id, name, color)')
+        .select('*, tags(id, name, color), group_task_files(id_file, task_id, name, url, path, created_at)')
         .eq('group_id', currentGroup.id)
         .order('created_at', { ascending: false });
 
     if (error) { showToast('Error al cargar tareas', 'error'); return; }
 
-    allGroupTasks = await syncRecurringGroupTasksToUpcomingDates(tasks || []);
+    const normalizedTasks = (tasks || []).map(t => ({
+        ...t,
+        files: Array.isArray(t.group_task_files) ? t.group_task_files : []
+    }));
+
+    allGroupTasks = await syncRecurringGroupTasksToUpcomingDates(normalizedTasks);
     applyGroupFiltersAndRender();
     renderGroupCalendar(); 
 }
@@ -1040,12 +1245,13 @@ function applyGroupFiltersAndRender() {
 
     const filteredTasks = allGroupTasks.filter(task => {
         const matchesTitle = task.title.toLowerCase().includes(searchTerm);
+        const hasFiles = Array.isArray(task.files) && task.files.length > 0;
 
         let matchesFile = true;
         if (fileFilter === 'with') {
-            matchesFile = Boolean(task.file_url);
+            matchesFile = hasFiles;
         } else if (fileFilter === 'without') {
-            matchesFile = !task.file_url;
+            matchesFile = !hasFiles;
         }
 
         let matchesTag = true;
@@ -1193,6 +1399,22 @@ function renderGroupTasks(tasks) {
             `;
         }
 
+        const taskFiles = Array.isArray(task.files) ? task.files : [];
+        let filesMarkup = '';
+        if (taskFiles.length > 0) {
+            const linksHtml = taskFiles.map(f => `
+                <a href="${f.url}" target="_blank" rel="noopener noreferrer" style="font-size: 13px; color: inherit; text-decoration: underline; opacity: 0.9; display: inline-flex; align-items: center; gap: 4px;">
+                    📎 ${f.name}
+                </a>
+            `).join('');
+
+            filesMarkup = `
+                <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                    ${linksHtml}
+                </div>
+            `;
+        }
+
         item.innerHTML = `
             <div class="task-content" style="color: inherit;">
                 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
@@ -1205,23 +1427,15 @@ function renderGroupTasks(tasks) {
                 
                 <div style="margin-top: 8px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
                     ${assigneeElementMarkup}
-                    
-                    ${task.file_url ? `
-                        <div>
-                            <a href="${task.file_url}" target="_blank" style="font-size: 13px; color: inherit; text-decoration: underline; opacity: 0.9;">
-                                📎 Descargar: ${task.file_name}
-                            </a>
-                        </div>
-                    ` : ''}
+                    ${filesMarkup}
                 </div>
             </div>
             
             <div class="task-actions">
                 ${canModify ? `
-                    <label class="btn-icon" title="${task.file_url ? 'Sustituir archivo' : 'Añadir archivo'}" style="cursor:pointer; color: inherit;">
+                    <button type="button" class="btn-icon edit-group-files-btn" title="${taskFiles.length > 0 ? 'Gestionar archivos' : 'Añadir archivos'}" style="cursor:pointer; color: inherit;">
                         🔄
-                        <input type="file" class="replace-file-input" style="display:none;">
-                    </label>
+                    </button>
                 ` : ''}
                 
                 <button class="btn-icon complete-btn" title="${task.recurrence_type && task.recurrence_type !== 'none' ? 'Completar y programar siguiente fecha' : (task.is_completed ? 'Desmarcar' : 'Completar')}" style="color: inherit;" ${!canModify ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
@@ -1263,34 +1477,18 @@ function renderGroupTasks(tasks) {
         });
 
         if (canModify) {
-            const replaceInput = item.querySelector('.replace-file-input');
-            replaceInput.addEventListener('change', async () => {
-                const file = replaceInput.files[0];
-                if (!file) return;
-                try {
-                    const fileExt = file.name.split('.').pop();
-                    const fileName = `group_${currentGroup.id}_task_${task.id}_${Date.now()}.${fileExt}`;
-                    
-                    const { error: uploadError } = await supabase.storage.from('group-files').upload(fileName, file);
-                    if (uploadError) throw new Error('Error al subir el archivo al almacenamiento.');
-
-                    const { data: pUrl } = supabase.storage.from('group-files').getPublicUrl(fileName);
-
-                    const { error: dbErr } = await supabase.from('group_tasks')
-                        .update({ file_url: pUrl.publicUrl, file_name: file.name })
-                        .eq('id', task.id);
-                    if (dbErr) throw dbErr;
-
-                    showToast('Archivo actualizado', 'success');
-                    loadGroupTasks();
-                } catch (err) { showToast(err.message, 'error'); }
-            });
+            const editFilesBtn = item.querySelector('.edit-group-files-btn');
+            if (editFilesBtn) {
+                editFilesBtn.addEventListener('click', () => {
+                    openGroupFilesModalForTask(task);
+                });
+            }
         }
 
         const delBtn = item.querySelector('.delete-task-btn');
         if (delBtn) {
             delBtn.addEventListener('click', () => {
-                taskToDeleteId = task.id;
+                taskToDelete = task;
                 deleteModal.classList.remove('hidden');
             });
         }
@@ -1325,7 +1523,7 @@ if (groupClearFiltersBtn) {
     });
 }
 
-// --- CREAR TAREA DENTRO DEL GRUPO ---
+// --- CREAR TAREA DENTRO DEL GRUPO (CON MÚLTIPLES ARCHIVOS) ---
 groupTaskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -1336,7 +1534,7 @@ groupTaskForm.addEventListener('submit', async (e) => {
     }
 
     addGroupTaskBtn.disabled = true;
-    addGroupTaskBtn.textContent = 'Añadiendo...';
+    addGroupTaskBtn.textContent = 'Subiendo...';
 
     const title = groupTaskTitle.value.trim();
     const description = groupTaskDesc.value.trim();
@@ -1358,53 +1556,132 @@ groupTaskForm.addEventListener('submit', async (e) => {
         dueDate = getUpcomingDate(dueDate, recurrenceType, savedGroupWeeklyDays, anchorDate, todayStr);
     }
 
-    const file = groupTaskFile.files[0];
-
-    let fileUrl = null;
-    let fileNameStr = null;
+    const filesToUpload = [...confirmedGroupPendingFiles];
+    const uploadedRecords = [];
 
     try {
-        if (file) {
-            const fileExt = file.name.split('.').pop();
-            const uniqueName = `group_${currentGroup.id}_${Date.now()}.${fileExt}`;
-            const { error: uploadError } = await supabase.storage.from('group-files').upload(uniqueName, file);
-            if (uploadError) throw new Error('No se pudo subir el archivo adjunto.');
-
-            const { data: pUrl } = supabase.storage.from('group-files').getPublicUrl(uniqueName);
-            fileUrl = pUrl.publicUrl;
-            fileNameStr = file.name;
+        for (const file of filesToUpload) {
+            const uploaded = await uploadSingleGroupFileToStorage(currentGroup.id, file);
+            uploadedRecords.push(uploaded);
         }
 
-        const { error: insErr } = await supabase.from('group_tasks').insert([{
-            group_id: currentGroup.id,
-            title: title,
-            description: description || null,
-            assigned_to: assignedTo,
-            created_by: currentUserId,
-            tag_id: tagId,
-            file_url: fileUrl,
-            file_name: fileNameStr,
-            due_date: dueDate,
-            recurrence_type: recurrenceType,
-            recurrence_days: recurrenceType === 'weekly' ? [...savedGroupWeeklyDays] : null,
-            recurrence_anchor_date: anchorDate,
-            is_completed: false
-        }]);
+        const { data: createdTask, error: insErr } = await supabase
+            .from('group_tasks')
+            .insert([{
+                group_id: currentGroup.id,
+                title: title,
+                description: description || null,
+                assigned_to: assignedTo,
+                created_by: currentUserId,
+                tag_id: tagId,
+                due_date: dueDate,
+                recurrence_type: recurrenceType,
+                recurrence_days: recurrenceType === 'weekly' ? [...savedGroupWeeklyDays] : null,
+                recurrence_anchor_date: anchorDate,
+                is_completed: false
+            }])
+            .select()
+            .single();
 
         if (insErr) throw insErr;
 
+        if (uploadedRecords.length > 0 && createdTask) {
+            const rowsToInsert = uploadedRecords.map(rec => ({
+                task_id: createdTask.id,
+                name: rec.name,
+                url: rec.url,
+                path: rec.path
+            }));
+
+            const { error: filesInsertError } = await supabase
+                .from('group_task_files')
+                .insert(rowsToInsert);
+
+            if (filesInsertError) {
+                throw new Error('La tarea se creó, pero falló al registrar los archivos: ' + filesInsertError.message);
+            }
+        }
+
         showToast('¡Tarea añadida con éxito!', 'success');
         groupTaskForm.reset();
-        groupFileNamePreview.textContent = 'Ningún archivo...';
+        resetGroupPendingFiles();
         selectGroupCreationTag(null);
         resetGroupRecurrencePicker();
-        loadGroupTasks();
-    } catch (err) { showToast(err.message, 'error'); }
-    finally {
+        await loadGroupTasks();
+    } catch (err) {
+        if (uploadedRecords.length > 0) {
+            await deleteGroupFilesFromStorage(uploadedRecords);
+        }
+        showToast(err.message || 'Error al guardar la tarea', 'error');
+    } finally {
         addGroupTaskBtn.disabled = false;
         addGroupTaskBtn.textContent = 'Añadir Tarea al Grupo';
     }
 });
+
+// --- GUARDAR ARCHIVOS EDITADOS DE UNA TAREA DE GRUPO EXISTENTE ---
+async function saveEditedGroupTaskFiles(task, finalItems) {
+    if (!currentGroup) return;
+    showToast('Actualizando archivos...', 'success');
+
+    const currentExistingFiles = Array.isArray(task.files) ? task.files : [];
+    const keptExistingRecords = finalItems
+        .filter(item => item.kind === 'existing')
+        .map(item => item.record);
+    const keptIds = new Set(keptExistingRecords.map(rec => rec.id_file));
+    const removedExistingRecords = currentExistingFiles.filter(rec => !keptIds.has(rec.id_file));
+    const newFilesToUpload = finalItems
+        .filter(item => item.kind === 'new')
+        .map(item => item.file);
+
+    const uploadedRecords = [];
+
+    try {
+        for (const file of newFilesToUpload) {
+            const uploaded = await uploadSingleGroupFileToStorage(currentGroup.id, file);
+            uploadedRecords.push(uploaded);
+        }
+
+        if (removedExistingRecords.length > 0) {
+            const removedIds = removedExistingRecords.map(rec => rec.id_file);
+            const { error: deleteRowsError } = await supabase
+                .from('group_task_files')
+                .delete()
+                .in('id_file', removedIds);
+
+            if (deleteRowsError) {
+                throw new Error('Error al quitar archivos eliminados');
+            }
+
+            await deleteGroupFilesFromStorage(removedExistingRecords);
+        }
+
+        if (uploadedRecords.length > 0) {
+            const rowsToInsert = uploadedRecords.map(rec => ({
+                task_id: task.id,
+                name: rec.name,
+                url: rec.url,
+                path: rec.path
+            }));
+
+            const { error: insertError } = await supabase
+                .from('group_task_files')
+                .insert(rowsToInsert);
+
+            if (insertError) {
+                throw new Error('Error al guardar los nuevos archivos');
+            }
+        }
+
+        showToast('Archivos actualizados correctamente', 'success');
+        await loadGroupTasks();
+    } catch (err) {
+        if (uploadedRecords.length > 0) {
+            await deleteGroupFilesFromStorage(uploadedRecords);
+        }
+        showToast(err.message || 'Error al actualizar archivos', 'error');
+    }
+}
 
 // --- RESTO DE MODALES (CREACIÓN, EDICIÓN Y EXPULSIÓN DE MIEMBROS / ELIMINACIÓN DE GRUPOS) ---
 createGroupForm.addEventListener('submit', async (e) => {
@@ -1527,14 +1804,22 @@ addMemberForm.addEventListener('submit', async (e) => {
 
 cancelDeleteBtn.addEventListener('click', () => {
     deleteModal.classList.add('hidden');
-    taskToDeleteId = null;
+    taskToDelete = null;
 });
 
 confirmDeleteBtn.addEventListener('click', async () => {
-    if (!taskToDeleteId) return;
+    if (!taskToDelete) return;
 
     try {
-        const { error: delErr } = await supabase.from('group_tasks').delete().eq('id', taskToDeleteId);
+        const taskFiles = Array.isArray(taskToDelete.files) ? taskToDelete.files : [];
+        if (taskFiles.length > 0) {
+            await deleteGroupFilesFromStorage(taskFiles);
+        }
+
+        const { error: delErr } = await supabase
+            .from('group_tasks')
+            .delete()
+            .eq('id', taskToDelete.id);
         if (delErr) throw delErr;
         
         showToast('Tarea eliminada', 'success');
@@ -1543,7 +1828,7 @@ confirmDeleteBtn.addEventListener('click', async () => {
         showToast('Error al borrar la tarea: ' + err.message, 'error');
     } finally {
         deleteModal.classList.add('hidden');
-        taskToDeleteId = null;
+        taskToDelete = null;
     }
 });
 
@@ -1562,6 +1847,17 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
     confirmDeleteGroupBtn.textContent = 'Eliminando...';
 
     try {
+        // Eliminar ficheros del Storage asociados a las tareas del grupo
+        const allFilesInGroup = allGroupTasks.flatMap(t => (Array.isArray(t.files) ? t.files : []));
+        if (allFilesInGroup.length > 0) {
+            await deleteGroupFilesFromStorage(allFilesInGroup);
+        }
+
+        const taskIds = allGroupTasks.map(t => t.id);
+        if (taskIds.length > 0) {
+            await supabase.from('group_task_files').delete().in('task_id', taskIds);
+        }
+
         const { error: taskErr } = await supabase.from('group_tasks').delete().eq('group_id', currentGroup.id);
         if (taskErr) throw taskErr;
 
@@ -1631,6 +1927,7 @@ confirmKickBtn.addEventListener('click', async () => {
 
 // --- INICIALIZACIÓN ---
 window.addEventListener('DOMContentLoaded', async () => {
+    initGroupFilesModal();
     initGroupRecurrenceModal();
     initGroupNewTagColorGrid();
     const uId = await checkAuthAndLoadProfile();

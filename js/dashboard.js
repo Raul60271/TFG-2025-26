@@ -70,7 +70,7 @@ function getNextYearlyDate(currentDateStr, anchorDateStr) {
     const anchor = parseLocalDate(anchorDateStr || currentDateStr);
 
     const nextYear = current.getFullYear() + 1;
-    const targetMonth = anchor.getMonth(); // 0-indexed (1 = Febrero)
+    const targetMonth = anchor.getMonth();
     let targetDay = anchor.getDate();
 
     if (targetMonth === 1 && targetDay === 29 && !isLeapYear(nextYear)) {
@@ -97,7 +97,6 @@ function calculateNextOccurrence(currentDueDateStr, recurrenceType, recurrenceDa
     }
 }
 
-// Adelanta una fecha pasada hasta la fecha más próxima vigente (>= minDateStr)
 function getUpcomingDate(dateStr, recurrenceType, recurrenceDays, anchorDateStr, minDateStr) {
     if (!dateStr || !recurrenceType || recurrenceType === 'none') return dateStr;
 
@@ -121,7 +120,6 @@ function getUpcomingDate(dateStr, recurrenceType, recurrenceDays, anchorDateStr,
     return current;
 }
 
-// Sincroniza en BD las tareas periódicas cuya fecha haya quedado atrás
 async function syncRecurringTasksToUpcomingDates(tasks) {
     const todayStr = formatLocalDate(new Date());
     const updatedTasks = [];
@@ -228,10 +226,26 @@ const toastNotification = document.getElementById('toast-notification');
 const createTaskForm = document.getElementById('create-task-form');
 const taskTitleInput = document.getElementById('task-title');
 const taskDescInput = document.getElementById('task-desc');
-const taskFileInput = document.getElementById('task-file');
 const taskDateInput = document.getElementById('task-date');
-const fileNameDisplay = document.getElementById('file-name-display');
 const taskListContainer = document.getElementById('task-list');
+
+// Referencias de Múltiples Archivos (Botón y Modal)
+const openFilesModalBtn = document.getElementById('open-files-modal-btn');
+const filesCountDisplay = document.getElementById('files-count-display');
+const taskFilesModal = document.getElementById('task-files-modal');
+const taskFileInput = document.getElementById('task-file-input');
+const modalSelectedFilesList = document.getElementById('modal-selected-files-list');
+const cancelFilesModalBtn = document.getElementById('cancel-files-modal-btn');
+const acceptFilesModalBtn = document.getElementById('accept-files-modal-btn');
+const triggerSelectFileBtn = document.getElementById('trigger-select-file-btn');
+
+// Estado de archivos para creación vs. edición de tarea existente
+// Cada elemento en tempPendingFiles es:
+// - { kind: 'new', file: File, name: string }
+// - { kind: 'existing', record: { id_file, task_id, name, url, path }, name: string }
+let confirmedPendingFiles = []; // File[] para creación de nueva tarea
+let tempPendingFiles = [];
+let editingTaskForFiles = null; // null = modo creación, objeto task = modo edición de tarea existente
 
 // Referencias de Periodicidad (Botón y Modal)
 const openRecurrenceModalBtn = document.getElementById('open-recurrence-modal-btn');
@@ -291,8 +305,7 @@ let currentCalendarDate = new Date();
 const deleteModal = document.getElementById('delete-modal');
 const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
 const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
-let taskToDeleteId = null; 
-let fileToDeleteUrl = null; 
+let taskToDelete = null;
 
 let currentUserId = null;
 let allTasks = [];
@@ -303,6 +316,152 @@ function showToast(message, type) {
     toastNotification.textContent = message;
     toastNotification.className = `toast show ${type}`;
     setTimeout(() => { toastNotification.classList.remove('show'); }, 3500);
+}
+
+// --- MODAL Y GESTIÓN DE MÚLTIPLES ARCHIVOS (CREACIÓN Y EDICIÓN) ---
+function updateFilesCountDisplay() {
+    if (!filesCountDisplay) return;
+    if (confirmedPendingFiles.length === 0) {
+        filesCountDisplay.textContent = 'Ningún archivo...';
+    } else if (confirmedPendingFiles.length === 1) {
+        filesCountDisplay.textContent = `1 archivo listo (${confirmedPendingFiles[0].name})`;
+    } else {
+        filesCountDisplay.textContent = `${confirmedPendingFiles.length} archivos listos`;
+    }
+}
+
+function renderTempFilesList() {
+    if (!modalSelectedFilesList) return;
+    modalSelectedFilesList.innerHTML = '';
+
+    if (tempPendingFiles.length === 0) {
+        modalSelectedFilesList.innerHTML = '<li style="padding: 12px; text-align: center; color: #888; font-size: 13px; font-style: italic;">Ningún archivo seleccionado todavía.</li>';
+        return;
+    }
+
+    tempPendingFiles.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; background: #fff;';
+
+        const nameSpan = document.createElement('span');
+        const badgeLabel = item.kind === 'existing' ? ' (guardado)' : '';
+        nameSpan.textContent = `📄 ${item.name}${badgeLabel}`;
+        nameSpan.style.cssText = 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 85%;';
+        nameSpan.title = item.name;
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.textContent = '✕';
+        removeBtn.title = 'Quitar archivo';
+        removeBtn.style.cssText = 'background: none; border: none; color: #dc3545; font-weight: bold; cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px;';
+        removeBtn.addEventListener('click', () => {
+            tempPendingFiles.splice(index, 1);
+            renderTempFilesList();
+        });
+
+        li.appendChild(nameSpan);
+        li.appendChild(removeBtn);
+        modalSelectedFilesList.appendChild(li);
+    });
+}
+
+function openFilesModalForCreate() {
+    editingTaskForFiles = null;
+    tempPendingFiles = confirmedPendingFiles.map(file => ({
+        kind: 'new',
+        file,
+        name: file.name
+    }));
+    renderTempFilesList();
+    taskFilesModal.classList.remove('hidden');
+}
+
+function openFilesModalForTask(task) {
+    editingTaskForFiles = task;
+    const existingFiles = Array.isArray(task.files) ? task.files : [];
+    tempPendingFiles = existingFiles.map(rec => ({
+        kind: 'existing',
+        record: rec,
+        name: rec.name
+    }));
+    renderTempFilesList();
+    taskFilesModal.classList.remove('hidden');
+}
+
+function closeFilesModal() {
+    tempPendingFiles = [];
+    editingTaskForFiles = null;
+    taskFileInput.value = '';
+    renderTempFilesList();
+    taskFilesModal.classList.add('hidden');
+}
+
+function initFilesModal() {
+    if (!openFilesModalBtn || !taskFilesModal) return;
+
+    openFilesModalBtn.addEventListener('click', () => {
+        openFilesModalForCreate();
+    });
+
+    triggerSelectFileBtn.addEventListener('click', () => {
+        taskFileInput.value = '';
+        taskFileInput.click();
+    });
+
+    taskFileInput.addEventListener('change', (e) => {
+        const pickedFiles = Array.from(e.target.files || []);
+        if (pickedFiles.length === 0) return;
+
+        pickedFiles.forEach(file => {
+            const exists = tempPendingFiles.some(item => {
+                if (item.kind === 'new') {
+                    return (
+                        item.file.name === file.name &&
+                        item.file.size === file.size &&
+                        item.file.lastModified === file.lastModified
+                    );
+                }
+                return item.record.name === file.name;
+            });
+
+            if (!exists) {
+                tempPendingFiles.push({
+                    kind: 'new',
+                    file,
+                    name: file.name
+                });
+            }
+        });
+
+        renderTempFilesList();
+    });
+
+    acceptFilesModalBtn.addEventListener('click', async () => {
+        if (editingTaskForFiles) {
+            await saveEditedTaskFiles(editingTaskForFiles, [...tempPendingFiles]);
+            closeFilesModal();
+            return;
+        }
+
+        confirmedPendingFiles = tempPendingFiles
+            .filter(item => item.kind === 'new')
+            .map(item => item.file);
+        updateFilesCountDisplay();
+        closeFilesModal();
+    });
+
+    cancelFilesModalBtn.addEventListener('click', () => {
+        closeFilesModal();
+    });
+}
+
+function resetPendingFiles() {
+    confirmedPendingFiles = [];
+    tempPendingFiles = [];
+    editingTaskForFiles = null;
+    if (taskFileInput) taskFileInput.value = '';
+    updateFilesCountDisplay();
+    renderTempFilesList();
 }
 
 // --- MODAL Y SELECTOR DE TAREAS PERIÓDICAS ---
@@ -741,30 +900,57 @@ logoutBtn.addEventListener('click', async (e) => {
     if (!error) window.location.href = 'index.html';
 });
 
-// --- 4. ACTUALIZAR NOMBRE DE ARCHIVO ---
-taskFileInput.addEventListener('change', (e) => {
-    if (e.target.files.length > 0) {
-        fileNameDisplay.textContent = e.target.files[0].name;
-    } else {
-        fileNameDisplay.textContent = 'Ningún archivo...';
+// --- 4. HELPERS DE STORAGE Y ARCHIVOS DE TAREA ---
+function extractStoragePath(fileRecord) {
+    if (!fileRecord) return null;
+    if (fileRecord.path) return fileRecord.path;
+    if (fileRecord.url) {
+        const parts = fileRecord.url.split('/task_files/');
+        if (parts.length === 2) return parts[1];
     }
-});
+    return null;
+}
 
-// --- 5. BORRAR ARCHIVO DE STORAGE ---
-async function deleteFileFromStorage(fileUrl) {
-    if (!fileUrl) return;
-    const urlParts = fileUrl.split('/task_files/');
-    if (urlParts.length === 2) {
-        const filePath = urlParts[1];
-        await supabase.storage.from('task_files').remove([filePath]);
+async function deleteFilesFromStorage(fileRecords) {
+    if (!Array.isArray(fileRecords) || fileRecords.length === 0) return;
+    const paths = fileRecords
+        .map(extractStoragePath)
+        .filter(Boolean);
+
+    if (paths.length > 0) {
+        await supabase.storage.from('task_files').remove(paths);
     }
 }
 
-// --- 6. CARGAR TAREAS (CON RELACIÓN A ETIQUETAS Y SINCRONIZACIÓN DE PRÓXIMA FECHA) ---
+async function uploadSingleFileToStorage(userId, file) {
+    const fileExt = file.name.split('.').pop();
+    const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `${userId}/${uniqueFileName}`;
+
+    const { error: uploadError } = await supabase.storage
+        .from('task_files')
+        .upload(filePath, file);
+
+    if (uploadError) {
+        throw new Error(`Error al subir "${file.name}"`);
+    }
+
+    const { data: publicUrlData } = supabase.storage
+        .from('task_files')
+        .getPublicUrl(filePath);
+
+    return {
+        name: file.name,
+        url: publicUrlData.publicUrl,
+        path: filePath
+    };
+}
+
+// --- 5. CARGAR TAREAS (CON ETIQUETAS Y ARCHIVOS RELACIONADOS) ---
 async function loadTasks(userId) {
     const { data: tasks, error } = await supabase
         .from('personal_tasks')
-        .select('*, tags(id, name, color)')
+        .select('*, tags(id, name, color), personal_task_files(id_file, task_id, name, url, path, created_at)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false }); 
 
@@ -772,13 +958,18 @@ async function loadTasks(userId) {
         showToast('Error al cargar tareas', 'error');
         return;
     }
-    
-    allTasks = await syncRecurringTasksToUpcomingDates(tasks || []);
+
+    const normalizedTasks = (tasks || []).map(t => ({
+        ...t,
+        files: Array.isArray(t.personal_task_files) ? t.personal_task_files : []
+    }));
+
+    allTasks = await syncRecurringTasksToUpcomingDates(normalizedTasks);
     applyFiltersAndRender();
     renderCalendar();
 }
 
-// --- 7. MINI-CALENDARIO ---
+// --- 6. MINI-CALENDARIO ---
 function renderCalendar() {
     if (!calendarGrid) return;
     calendarGrid.innerHTML = '';
@@ -870,7 +1061,7 @@ if (nextMonthBtn) {
     });
 }
 
-// --- 8. FILTRADO ---
+// --- 7. FILTRADO ---
 function applyFiltersAndRender() {
     const searchTerm = searchTaskInput.value.toLowerCase().trim();
     const fileFilter = filterFileSelect.value;
@@ -879,12 +1070,13 @@ function applyFiltersAndRender() {
 
     const filteredTasks = allTasks.filter(task => {
         const matchesTitle = task.title.toLowerCase().includes(searchTerm);
+        const hasFiles = Array.isArray(task.files) && task.files.length > 0;
 
         let matchesFile = true;
         if (fileFilter === 'with') {
-            matchesFile = Boolean(task.file_url);
+            matchesFile = hasFiles;
         } else if (fileFilter === 'without') {
-            matchesFile = !task.file_url;
+            matchesFile = !hasFiles;
         }
 
         let matchesTag = true;
@@ -959,6 +1151,22 @@ function renderTasks(tasks) {
             `;
         }
 
+        const taskFiles = Array.isArray(task.files) ? task.files : [];
+        let filesMarkup = '';
+        if (taskFiles.length > 0) {
+            const linksHtml = taskFiles.map(f => `
+                <a href="${f.url}" target="_blank" rel="noopener noreferrer" style="font-size: 13px; color: inherit; text-decoration: underline; opacity: 0.9; display: inline-flex; align-items: center; gap: 4px;">
+                    📎 ${f.name}
+                </a>
+            `).join('');
+
+            filesMarkup = `
+                <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 12px;">
+                    ${linksHtml}
+                </div>
+            `;
+        }
+
         taskElement.innerHTML = `
             <div class="task-content" style="color: inherit;">
                 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
@@ -968,19 +1176,12 @@ function renderTasks(tasks) {
                     ${dueDateMarkup}
                 </div>
                 ${task.description ? `<p style="color: inherit; opacity: 0.85;">${task.description}</p>` : ''}
-                ${task.file_url ? `
-                    <div style="margin-top: 8px;">
-                        <a href="${task.file_url}" target="_blank" style="font-size: 13px; color: inherit; text-decoration: underline; opacity: 0.9;">
-                            📎 Descargar: ${task.file_name}
-                        </a>
-                    </div>
-                ` : ''}
+                ${filesMarkup}
             </div>
             <div class="task-actions">
-                <label class="btn-icon" title="${task.file_url ? 'Sustituir archivo' : 'Añadir archivo'}" style="cursor:pointer; color: inherit;">
+                <button type="button" class="btn-icon edit-files-btn" title="${taskFiles.length > 0 ? 'Gestionar archivos' : 'Añadir archivos'}" style="cursor:pointer; color: inherit;">
                     🔄
-                    <input type="file" class="hidden-replace-input" style="display:none;">
-                </label>
+                </button>
                 
                 <button class="btn-icon complete-btn" title="${task.recurrence_type && task.recurrence_type !== 'none' ? 'Completar y programar siguiente fecha' : (task.is_completed ? 'Desmarcar' : 'Completar')}" style="color: inherit;">
                     ${task.is_completed ? '✅' : '⬜'}
@@ -993,20 +1194,16 @@ function renderTasks(tasks) {
         completeBtn.addEventListener('click', () => toggleTaskCompletion(task));
 
         const deleteBtn = taskElement.querySelector('.delete-btn');
-        deleteBtn.addEventListener('click', () => openDeleteModal(task.id, task.file_url));
+        deleteBtn.addEventListener('click', () => openDeleteModal(task));
 
-        const replaceInput = taskElement.querySelector('.hidden-replace-input');
-        replaceInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                replaceTaskFile(task.id, task.file_url, e.target.files[0]);
-            }
-        });
+        const editFilesBtn = taskElement.querySelector('.edit-files-btn');
+        editFilesBtn.addEventListener('click', () => openFilesModalForTask(task));
 
         taskListContainer.appendChild(taskElement);
     });
 }
 
-// --- 9. EVENTOS DE FILTROS ---
+// --- 8. EVENTOS DE FILTROS ---
 searchTaskInput.addEventListener('input', applyFiltersAndRender);
 filterFileSelect.addEventListener('change', applyFiltersAndRender);
 
@@ -1028,7 +1225,7 @@ clearFiltersBtn.addEventListener('click', () => {
     renderCalendar();
 });
 
-// --- 10. CREAR NUEVA TAREA ---
+// --- 9. CREAR NUEVA TAREA (CON MÚLTIPLES ARCHIVOS) ---
 createTaskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -1044,7 +1241,11 @@ createTaskForm.addEventListener('submit', async (e) => {
     submitBtn.disabled = true;
 
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    if (!session) {
+        submitBtn.textContent = originalBtnText;
+        submitBtn.disabled = false;
+        return;
+    }
 
     const title = taskTitleInput.value;
     const description = taskDescInput.value;
@@ -1065,111 +1266,133 @@ createTaskForm.addEventListener('submit', async (e) => {
         dueDate = getUpcomingDate(dueDate, recurrenceType, savedWeeklyDays, anchorDate, todayStr);
     }
 
-    const file = taskFileInput.files[0];
-    let fileUrl = null;
-    let fileName = null;
+    const filesToUpload = [...confirmedPendingFiles];
+    const uploadedRecords = [];
 
-    if (file) {
-        const fileExt = file.name.split('.').pop();
-        const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = `${session.user.id}/${uniqueFileName}`; 
-
-        const { error: uploadError } = await supabase.storage
-            .from('task_files')
-            .upload(filePath, file);
-
-        if (uploadError) {
-            showToast('Error al subir el archivo', 'error');
-            submitBtn.textContent = originalBtnText;
-            submitBtn.disabled = false;
-            return; 
+    try {
+        for (const file of filesToUpload) {
+            const uploaded = await uploadSingleFileToStorage(session.user.id, file);
+            uploadedRecords.push(uploaded);
         }
 
-        const { data: publicUrlData } = supabase.storage
-            .from('task_files')
-            .getPublicUrl(filePath);
-        
-        fileUrl = publicUrlData.publicUrl;
-        fileName = file.name;
-    }
+        const { data: createdTask, error: insertError } = await supabase
+            .from('personal_tasks')
+            .insert([{ 
+                user_id: session.user.id, 
+                title: title, 
+                description: description || null,
+                tag_id: tagId,
+                due_date: dueDate,
+                recurrence_type: recurrenceType,
+                recurrence_days: recurrenceType === 'weekly' ? [...savedWeeklyDays] : null,
+                recurrence_anchor_date: anchorDate
+            }])
+            .select()
+            .single();
 
-    const { error: insertError } = await supabase
-        .from('personal_tasks')
-        .insert([{ 
-            user_id: session.user.id, 
-            title: title, 
-            description: description || null,
-            tag_id: tagId,
-            due_date: dueDate,
-            recurrence_type: recurrenceType,
-            recurrence_days: recurrenceType === 'weekly' ? [...savedWeeklyDays] : null,
-            recurrence_anchor_date: anchorDate,
-            file_url: fileUrl,
-            file_name: fileName
-        }]);
+        if (insertError) throw new Error('Error al crear la tarea: ' + insertError.message);
 
-    if (insertError) {
-        showToast('Error al crear la tarea: ' + insertError.message, 'error');
-    } else {
+        if (uploadedRecords.length > 0 && createdTask) {
+            const rowsToInsert = uploadedRecords.map(rec => ({
+                task_id: createdTask.id,
+                name: rec.name,
+                url: rec.url,
+                path: rec.path
+            }));
+
+            const { error: filesInsertError } = await supabase
+                .from('personal_task_files')
+                .insert(rowsToInsert);
+
+            if (filesInsertError) {
+                throw new Error('La tarea se creó, pero falló al registrar los archivos: ' + filesInsertError.message);
+            }
+        }
+
         showToast('Tarea añadida con éxito', 'success');
         createTaskForm.reset();
-        fileNameDisplay.textContent = 'Ningún archivo...'; 
+        resetPendingFiles();
         selectCreationTag(null);
         resetRecurrencePicker();
-        loadTasks(session.user.id);
+        await loadTasks(session.user.id);
+    } catch (err) {
+        if (uploadedRecords.length > 0) {
+            await deleteFilesFromStorage(uploadedRecords);
+        }
+        showToast(err.message || 'Error al guardar la tarea', 'error');
+    } finally {
+        submitBtn.textContent = originalBtnText;
+        submitBtn.disabled = false;
     }
-
-    submitBtn.textContent = originalBtnText;
-    submitBtn.disabled = false;
 });
 
-// --- 11. SUSTITUIR ARCHIVO ---
-async function replaceTaskFile(taskId, oldFileUrl, newFile) {
-    showToast('Subiendo nuevo archivo...', 'success');
+// --- 10. GUARDAR ARCHIVOS EDITADOS DE UNA TAREA EXISTENTE ---
+async function saveEditedTaskFiles(task, finalItems) {
+    showToast('Actualizando archivos...', 'success');
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
 
-    const fileExt = newFile.name.split('.').pop();
-    const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `${session.user.id}/${uniqueFileName}`; 
+    const currentExistingFiles = Array.isArray(task.files) ? task.files : [];
+    const keptExistingRecords = finalItems
+        .filter(item => item.kind === 'existing')
+        .map(item => item.record);
+    const keptIds = new Set(keptExistingRecords.map(rec => rec.id_file));
+    const removedExistingRecords = currentExistingFiles.filter(rec => !keptIds.has(rec.id_file));
+    const newFilesToUpload = finalItems
+        .filter(item => item.kind === 'new')
+        .map(item => item.file);
 
-    const { error: uploadError } = await supabase.storage
-        .from('task_files')
-        .upload(filePath, newFile);
+    const uploadedRecords = [];
 
-    if (uploadError) {
-        showToast('Error al subir el nuevo archivo', 'error');
-        return;
-    }
+    try {
+        for (const file of newFilesToUpload) {
+            const uploaded = await uploadSingleFileToStorage(session.user.id, file);
+            uploadedRecords.push(uploaded);
+        }
 
-    const { data: publicUrlData } = supabase.storage
-        .from('task_files')
-        .getPublicUrl(filePath);
-    const newFileUrl = publicUrlData.publicUrl;
-    const newFileName = newFile.name;
+        if (removedExistingRecords.length > 0) {
+            const removedIds = removedExistingRecords.map(rec => rec.id_file);
+            const { error: deleteRowsError } = await supabase
+                .from('personal_task_files')
+                .delete()
+                .in('id_file', removedIds);
 
-    if (oldFileUrl) {
-        await deleteFileFromStorage(oldFileUrl);
-    }
+            if (deleteRowsError) {
+                throw new Error('Error al quitar archivos eliminados');
+            }
 
-    const { error: updateError } = await supabase
-        .from('personal_tasks')
-        .update({ 
-            file_url: newFileUrl, 
-            file_name: newFileName 
-        })
-        .eq('id', taskId);
+            await deleteFilesFromStorage(removedExistingRecords);
+        }
 
-    if (updateError) {
-        showToast('Error al actualizar la tarea', 'error');
-    } else {
-        showToast('Archivo sustituido correctamente', 'success');
-        loadTasks(session.user.id);
+        if (uploadedRecords.length > 0) {
+            const rowsToInsert = uploadedRecords.map(rec => ({
+                task_id: task.id,
+                name: rec.name,
+                url: rec.url,
+                path: rec.path
+            }));
+
+            const { error: insertError } = await supabase
+                .from('personal_task_files')
+                .insert(rowsToInsert);
+
+            if (insertError) {
+                throw new Error('Error al guardar los nuevos archivos');
+            }
+        }
+
+        showToast('Archivos actualizados correctamente', 'success');
+        await loadTasks(session.user.id);
+    } catch (err) {
+        if (uploadedRecords.length > 0) {
+            await deleteFilesFromStorage(uploadedRecords);
+        }
+        showToast(err.message || 'Error al actualizar archivos', 'error');
     }
 }
 
-// --- 12. COMPLETAR TAREA (CON REPROGRAMACIÓN PERIÓDICA) ---
+// --- 11. COMPLETAR TAREA (CON REPROGRAMACIÓN PERIÓDICA) ---
 async function toggleTaskCompletion(task) {
     const recType = task.recurrence_type || 'none';
 
@@ -1218,30 +1441,29 @@ async function toggleTaskCompletion(task) {
     }
 }
 
-// --- 13. BORRAR TAREA ---
-function openDeleteModal(taskId, fileUrl) {
-    taskToDeleteId = taskId;
-    fileToDeleteUrl = fileUrl; 
+// --- 12. BORRAR TAREA ---
+function openDeleteModal(task) {
+    taskToDelete = task;
     deleteModal.classList.remove('hidden');
 }
 
 cancelDeleteBtn.addEventListener('click', () => {
     deleteModal.classList.add('hidden');
-    taskToDeleteId = null;
-    fileToDeleteUrl = null;
+    taskToDelete = null;
 });
 
 confirmDeleteBtn.addEventListener('click', async () => {
-    if (!taskToDeleteId) return;
+    if (!taskToDelete) return;
 
-    if (fileToDeleteUrl) {
-        await deleteFileFromStorage(fileToDeleteUrl);
+    const taskFiles = Array.isArray(taskToDelete.files) ? taskToDelete.files : [];
+    if (taskFiles.length > 0) {
+        await deleteFilesFromStorage(taskFiles);
     }
 
     const { error: deleteError } = await supabase
         .from('personal_tasks')
         .delete()
-        .eq('id', taskToDeleteId);
+        .eq('id', taskToDelete.id);
 
     if (deleteError) {
         showToast('Error al borrar la tarea', 'error');
@@ -1252,12 +1474,12 @@ confirmDeleteBtn.addEventListener('click', async () => {
     }
 
     deleteModal.classList.add('hidden');
-    taskToDeleteId = null;
-    fileToDeleteUrl = null;
+    taskToDelete = null;
 });
 
 // --- INICIALIZACIÓN ---
 window.addEventListener('DOMContentLoaded', async () => {
+    initFilesModal();
     initRecurrenceModal();
     initNewTagColorGrid();
     const userId = await checkAuthAndLoadProfile();

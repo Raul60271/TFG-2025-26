@@ -93,14 +93,13 @@
                                 </select>
                             </div>
 
-                            <!-- FILA 1 DE OPCIONES: Archivo y Etiqueta -->
+                            <!-- FILA 1 DE OPCIONES: Archivos y Etiqueta -->
                             <div class="form-group" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
                                 <div style="display: flex; align-items: center; gap: 10px;">
-                                    <label class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px;">
-                                        📎 Adjuntar archivo (opcional)
-                                        <input type="file" id="group-task-file" style="display: none;">
-                                    </label>
-                                    <span id="group-file-name-preview" style="font-size: 13px; color: #666;">Ningún archivo...</span>
+                                    <button type="button" id="open-group-files-modal-btn" class="btn-secondary" style="cursor: pointer; padding: 8px 12px; font-size: 13px; border: none; height: 35px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px;">
+                                        📎 Adjuntar archivos (opcional)
+                                    </button>
+                                    <span id="group-files-count-display" class="file-name" style="font-size: 13px; color: #666;">Ningún archivo...</span>
                                 </div>
                                 
                                 <!-- SELECTOR DE ETIQUETAS EN CREACIÓN DE GRUPO -->
@@ -206,6 +205,36 @@
         </aside>
 
     </main>
+
+    <!-- MODAL PARA GESTIONAR MÚLTIPLES ARCHIVOS DE TAREA DE GRUPO -->
+    <div id="group-task-files-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">📎 Archivos adjuntos</h3>
+            
+            <!-- Input real oculto para seleccionar uno o varios archivos -->
+            <input type="file" id="group-task-file-input" multiple class="hidden-file-input" style="display: none;">
+
+            <!-- Botón superior para añadir archivos a la lista -->
+            <div style="margin-top: 15px; text-align: left;">
+                <button type="button" id="group-trigger-select-file-btn" class="btn-secondary" style="width: 100%; padding: 9px 12px; font-size: 13px; border: 1px dashed #bbb; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                    📤 Subir archivo
+                </button>
+            </div>
+
+            <!-- Listado de archivos seleccionados con botón X individual -->
+            <div style="text-align: left; margin-top: 15px;">
+                <label style="font-size: 13px; font-weight: 600; color: #555; display: block; margin-bottom: 8px;">Archivos seleccionados:</label>
+                <ul id="group-modal-selected-files-list" style="list-style: none; padding: 0; margin: 0; max-height: 190px; overflow-y: auto; border: 1px solid #eee; border-radius: 6px; background-color: #fafafa;">
+                    <li style="padding: 12px; text-align: center; color: #888; font-size: 13px; font-style: italic;">Ningún archivo seleccionado todavía.</li>
+                </ul>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button type="button" id="group-cancel-files-modal-btn" class="btn-secondary">Cancelar</button>
+                <button type="button" id="group-accept-files-modal-btn" class="btn-primary" style="width: auto; flex-grow: 1;">Aceptar</button>
+            </div>
+        </div>
+    </div>
 
     <!-- MODAL PARA CONFIGURAR TAREA PERIÓDICA DE GRUPO -->
     <div id="group-recurrence-modal" class="modal-overlay hidden">
