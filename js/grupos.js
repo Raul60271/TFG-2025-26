@@ -251,9 +251,9 @@ const groupCancelFilesModalBtn = document.getElementById('group-cancel-files-mod
 const groupAcceptFilesModalBtn = document.getElementById('group-accept-files-modal-btn');
 const groupTriggerSelectFileBtn = document.getElementById('group-trigger-select-file-btn');
 
-let confirmedGroupPendingFiles = []; // File[] para creación de nueva tarea en el grupo
-let tempGroupPendingFiles = []; // { kind: 'new'|'existing', file?, record?, name }
-let editingGroupTaskForFiles = null; // null = modo creación, objeto task = modo edición de tarea existente
+let confirmedGroupPendingFiles = [];
+let tempGroupPendingFiles = [];
+let editingGroupTaskForFiles = null;
 
 // Referencias de Periodicidad en Grupo (Botón y Modal)
 const openGroupRecurrenceModalBtn = document.getElementById('open-group-recurrence-modal-btn');
@@ -1218,15 +1218,55 @@ async function loadGroupMembers(group) {
 
 // --- CARGAR Y FILTRAR TAREAS DEL GRUPO (CON ETIQUETAS Y ARCHIVOS RELACIONADOS) ---
 async function loadGroupTasks() {
-    const { data: tasks, error } = await supabase
+    let tasks = null;
+
+    const { data: joinedTasks, error: joinedError } = await supabase
         .from('group_tasks')
         .select('*, tags(id, name, color), group_task_files(id_file, task_id, name, url, path, created_at)')
         .eq('group_id', currentGroup.id)
         .order('created_at', { ascending: false });
 
-    if (error) { showToast('Error al cargar tareas', 'error'); return; }
+    if (!joinedError) {
+        tasks = joinedTasks || [];
+    } else {
+        // Respaldo si PostgREST aún no reconoce la relación anidada group_task_files
+        const { data: fallbackTasks, error: fallbackError } = await supabase
+            .from('group_tasks')
+            .select('*, tags(id, name, color)')
+            .eq('group_id', currentGroup.id)
+            .order('created_at', { ascending: false });
 
-    const normalizedTasks = (tasks || []).map(t => ({
+        if (fallbackError) {
+            showToast('Error al cargar tareas: ' + fallbackError.message, 'error');
+            return;
+        }
+
+        const taskList = fallbackTasks || [];
+        const taskIds = taskList.map(t => t.id);
+        let filesByTaskId = {};
+
+        if (taskIds.length > 0) {
+            const { data: filesRows } = await supabase
+                .from('group_task_files')
+                .select('id_file, task_id, name, url, path, created_at')
+                .in('task_id', taskIds);
+
+            if (Array.isArray(filesRows)) {
+                filesByTaskId = filesRows.reduce((acc, row) => {
+                    if (!acc[row.task_id]) acc[row.task_id] = [];
+                    acc[row.task_id].push(row);
+                    return acc;
+                }, {});
+            }
+        }
+
+        tasks = taskList.map(t => ({
+            ...t,
+            group_task_files: filesByTaskId[t.id] || []
+        }));
+    }
+
+    const normalizedTasks = tasks.map(t => ({
         ...t,
         files: Array.isArray(t.group_task_files) ? t.group_task_files : []
     }));
@@ -1847,7 +1887,6 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
     confirmDeleteGroupBtn.textContent = 'Eliminando...';
 
     try {
-        // Eliminar ficheros del Storage asociados a las tareas del grupo
         const allFilesInGroup = allGroupTasks.flatMap(t => (Array.isArray(t.files) ? t.files : []));
         if (allFilesInGroup.length > 0) {
             await deleteGroupFilesFromStorage(allFilesInGroup);
