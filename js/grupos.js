@@ -350,10 +350,29 @@ const memberEmailInput = document.getElementById('member-email');
 const currentMembersList = document.getElementById('current-members-list');
 
 let currentUserId = null;
-let currentGroup = null; 
-let currentGroupMembers = []; 
-let allGroupTasks = []; 
+let currentGroup = null;
+let currentGroupMembers = []; // { id, username, email, role: 'creator' | 'admin' | 'member' }
+let allGroupTasks = [];
 let groupTags = [];
+let adminGroupIds = new Set();
+
+// --- HELPERS DE ROLES Y PERMISOS ---
+function isGroupCreator(group, userId = currentUserId) {
+    return Boolean(group && userId && group.admin_id === userId);
+}
+
+function hasGroupAdminPrivileges(group = currentGroup, userId = currentUserId) {
+    if (!group || !userId) return false;
+    if (group.admin_id === userId) return true;
+    const member = currentGroupMembers.find(m => m.id === userId);
+    return Boolean(member && member.role === 'admin');
+}
+
+function getRoleLabel(role) {
+    if (role === 'creator') return '👑 Creador';
+    if (role === 'admin') return '🛡️ Administrador';
+    return 'Miembro';
+}
 
 // --- NOTIFICACIONES TOAST ---
 function showToast(message, type) {
@@ -692,12 +711,12 @@ async function loadGroupTags(groupId) {
 
 // --- RENDERIZAR MENÚS DESPLEGABLES DE ETIQUETAS DEL GRUPO ---
 function renderGroupTagDropdowns() {
-    const isAdmin = currentGroup && currentGroup.admin_id === currentUserId;
+    const canManageTags = hasGroupAdminPrivileges();
 
     if (groupTaskTagDropdown) {
         groupTaskTagDropdown.innerHTML = '';
 
-        if (isAdmin) {
+        if (canManageTags) {
             const addNewBtn = document.createElement('button');
             addNewBtn.type = 'button';
             addNewBtn.className = 'tag-add-new-btn';
@@ -743,7 +762,7 @@ function renderGroupTagDropdowns() {
 
             row.appendChild(itemBtn);
 
-            if (isAdmin) {
+            if (canManageTags) {
                 const deleteTagBtn = document.createElement('button');
                 deleteTagBtn.type = 'button';
                 deleteTagBtn.className = 'tag-delete-btn';
@@ -851,10 +870,10 @@ document.addEventListener('click', () => {
     if (groupFilterTagDropdown) groupFilterTagDropdown.classList.add('hidden');
 });
 
-// --- MODAL PARA CREAR NUEVA ETIQUETA EN EL GRUPO (SOLO ADMIN) ---
+// --- MODAL PARA CREAR NUEVA ETIQUETA EN EL GRUPO (CREADOR O ADMIN) ---
 function openGroupCreateTagModal() {
-    if (!currentGroup || currentGroup.admin_id !== currentUserId) {
-        showToast('Solo el administrador puede crear etiquetas en el grupo', 'error');
+    if (!hasGroupAdminPrivileges()) {
+        showToast('Solo los administradores o el creador pueden crear etiquetas en el grupo', 'error');
         return;
     }
     groupCreateTagForm.reset();
@@ -870,7 +889,7 @@ groupCancelCreateTagBtn.addEventListener('click', () => {
 
 groupCreateTagForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!currentGroup || currentGroup.admin_id !== currentUserId) {
+    if (!hasGroupAdminPrivileges()) {
         showToast('No tienes permisos para crear etiquetas en este grupo', 'error');
         return;
     }
@@ -911,10 +930,10 @@ groupCreateTagForm.addEventListener('submit', async (e) => {
     }
 });
 
-// --- MODAL PARA ELIMINAR ETIQUETA DEL GRUPO (SOLO ADMIN) ---
+// --- MODAL PARA ELIMINAR ETIQUETA DEL GRUPO (CREADOR O ADMIN) ---
 function openGroupDeleteTagModal(tagId) {
-    if (!currentGroup || currentGroup.admin_id !== currentUserId) {
-        showToast('Solo el administrador puede eliminar etiquetas del grupo', 'error');
+    if (!hasGroupAdminPrivileges()) {
+        showToast('Solo los administradores o el creador pueden eliminar etiquetas del grupo', 'error');
         return;
     }
     groupTagToDeleteId = tagId;
@@ -928,7 +947,7 @@ groupCancelDeleteTagBtn.addEventListener('click', () => {
 
 groupConfirmDeleteTagBtn.addEventListener('click', async () => {
     if (!groupTagToDeleteId || !currentGroup) return;
-    if (currentGroup.admin_id !== currentUserId) {
+    if (!hasGroupAdminPrivileges()) {
         showToast('No tienes permisos para eliminar etiquetas en este grupo', 'error');
         groupDeleteTagModal.classList.add('hidden');
         groupTagToDeleteId = null;
@@ -1005,8 +1024,15 @@ cancelAddMember.addEventListener('click', () => addMemberModal.classList.add('hi
 // --- CARGAR LISTA DE GRUPOS ---
 async function loadGroups() {
     const { data: adminGroups } = await supabase.from('groups').select('*').eq('admin_id', currentUserId);
-    const { data: memberRelations } = await supabase.from('group_members').select('group_id').eq('user_id', currentUserId);
-    
+    const { data: memberRelations } = await supabase.from('group_members').select('group_id, role').eq('user_id', currentUserId);
+
+    adminGroupIds = new Set((adminGroups || []).map(g => g.id));
+    (memberRelations || []).forEach(rel => {
+        if (rel.role === 'admin') {
+            adminGroupIds.add(rel.group_id);
+        }
+    });
+
     let joinedGroups = [];
     if (memberRelations && memberRelations.length > 0) {
         const groupIds = memberRelations.map(rel => rel.group_id);
@@ -1033,12 +1059,17 @@ function renderGroupsList(groups) {
         const item = document.createElement('div');
         item.className = 'task-item';
         item.style.cursor = 'pointer';
-        const isAdmin = group.admin_id === currentUserId;
+
+        const isCreator = isGroupCreator(group);
+        const isAdminRole = adminGroupIds.has(group.id);
+        const badgeText = isCreator
+            ? '👑 Eres Creador'
+            : (isAdminRole ? '🛡️ Eres Administrador' : '👤 Miembro');
 
         item.innerHTML = `
             <div class="task-content">
                 <h4 class="task-title">👥 ${group.name}</h4>
-                <p style="margin:4px 0 0 0; font-size:12px; color:#777;">${isAdmin ? '👑 Eres Administrador' : '👤 Miembro'}</p>
+                <p style="margin:4px 0 0 0; font-size:12px; color:#777;">${badgeText}</p>
             </div>
             <div class="task-actions"><span style="color:#007bff; font-size:13px; font-weight:bold;">Gestionar ➡️</span></div>
         `;
@@ -1060,17 +1091,20 @@ async function selectGroup(group) {
     selectedGroupName.textContent = `👥 ${group.name}`;
     selectedGroupDesc.textContent = group.description || 'Sin descripción disponible.';
 
-    const isAdmin = group.admin_id === currentUserId;
+    await loadGroupMembers(group);
 
-    if (isAdmin) {
+    const canManage = hasGroupAdminPrivileges(group);
+    if (canManage) {
+        adminGroupActions.classList.remove('hidden');
         adminGroupActions.style.display = 'flex';
     } else {
+        adminGroupActions.classList.add('hidden');
         adminGroupActions.style.display = 'none';
     }
 
     if (groupSearchTaskInput) groupSearchTaskInput.value = '';
     if (groupFilterFileSelect) groupFilterFileSelect.value = 'all';
-    
+
     resetGroupPendingFiles();
     selectGroupCreationTag(null);
     resetGroupRecurrencePicker();
@@ -1079,7 +1113,6 @@ async function selectGroup(group) {
 
     if (groupFilterDateInput) groupFilterDateInput.value = '';
 
-    await loadGroupMembers(group);
     await loadGroupTags(group.id);
     await loadGroupTasks();
 }
@@ -1093,10 +1126,10 @@ function renderGroupCalendar() {
     const month = currentCalendarDate.getMonth();
 
     const monthNames = [
-        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
     ];
-    
+
     if (calendarMonthName) calendarMonthName.textContent = monthNames[month];
     if (calendarYearInput && document.activeElement !== calendarYearInput) {
         calendarYearInput.value = year;
@@ -1176,34 +1209,45 @@ if (nextMonthBtn) {
     });
 }
 
-// --- CARGAR MIEMBROS DEL GRUPO ---
+// --- CARGAR MIEMBROS Y ROLES DEL GRUPO ---
 async function loadGroupMembers(group) {
     currentGroupMembers = [];
-    
+
     const { data: adminData } = await supabase.from('users').select('id, username, email').eq('id', group.admin_id).single();
-    if (adminData) currentGroupMembers.push(adminData);
+    if (adminData) {
+        currentGroupMembers.push({
+            ...adminData,
+            role: 'creator'
+        });
+    }
 
     const { data: relations, error } = await supabase
         .from('group_members')
-        .select('user_id, users(id, username, email)')
+        .select('user_id, role, users(id, username, email)')
         .eq('group_id', group.id);
 
     if (relations && !error) {
         relations.forEach(r => {
             if (r.users && r.users.id !== group.admin_id) {
-                currentGroupMembers.push(r.users);
+                currentGroupMembers.push({
+                    ...r.users,
+                    role: r.role === 'admin' ? 'admin' : 'member'
+                });
             }
         });
     }
 
     groupTaskAssignee.innerHTML = '';
-    const isAdmin = group.admin_id === currentUserId;
+    const canAssign = hasGroupAdminPrivileges(group);
 
-    if (isAdmin) {
+    if (canAssign) {
         currentGroupMembers.forEach(m => {
             const opt = document.createElement('option');
             opt.value = m.id;
-            opt.textContent = m.id === currentUserId ? `${m.username} (Tú - Admin)` : `${m.username} (${m.email})`;
+            const roleSuffix = m.id === currentUserId
+                ? (m.role === 'creator' ? '(Tú - Creador)' : '(Tú - Admin)')
+                : (m.role === 'creator' ? 'Creador' : (m.role === 'admin' ? 'Admin' : 'Miembro'));
+            opt.textContent = `${m.username} ${roleSuffix}`;
             groupTaskAssignee.appendChild(opt);
         });
         groupTaskAssignee.disabled = false;
@@ -1229,7 +1273,6 @@ async function loadGroupTasks() {
     if (!joinedError) {
         tasks = joinedTasks || [];
     } else {
-        // Respaldo si PostgREST aún no reconoce la relación anidada group_task_files
         const { data: fallbackTasks, error: fallbackError } = await supabase
             .from('group_tasks')
             .select('*, tags(id, name, color)')
@@ -1273,7 +1316,7 @@ async function loadGroupTasks() {
 
     allGroupTasks = await syncRecurringGroupTasksToUpcomingDates(normalizedTasks);
     applyGroupFiltersAndRender();
-    renderGroupCalendar(); 
+    renderGroupCalendar();
 }
 
 // Lógica de filtrado en cliente para grupos
@@ -1368,18 +1411,18 @@ function renderGroupTasks(tasks) {
         return;
     }
 
-    const isAdmin = currentGroup.admin_id === currentUserId;
+    const canManage = hasGroupAdminPrivileges();
     const todayStr = formatLocalDate(new Date());
 
     tasks.forEach(task => {
-        const canModify = isAdmin || task.assigned_to === currentUserId;
-        
+        const canModify = canManage || task.assigned_to === currentUserId;
+
         const item = document.createElement('div');
         item.className = `task-item ${task.is_completed ? 'completed' : ''}`;
 
         const colorKey = (task.tags && task.tags.color) ? task.tags.color : 'blanco';
         const styleConfig = TASK_COLORS[colorKey] || TASK_COLORS['blanco'];
-        
+
         item.style.backgroundColor = styleConfig.bg;
         item.style.color = styleConfig.text;
         item.style.borderLeft = `4px solid ${styleConfig.border}`;
@@ -1409,10 +1452,10 @@ function renderGroupTasks(tasks) {
         let dueDateMarkup = '';
         if (task.due_date) {
             const isOverdue = task.due_date < todayStr && !task.is_completed;
-            const dateStyle = isOverdue 
-                ? 'background: #ffe6e6; color: #dc3545; border: 1px solid #f5c6cb;' 
+            const dateStyle = isOverdue
+                ? 'background: #ffe6e6; color: #dc3545; border: 1px solid #f5c6cb;'
                 : 'background: rgba(0,0,0,0.05); color: inherit; border: 1px solid rgba(0,0,0,0.1);';
-            
+
             dueDateMarkup = `
                 <span style="font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; ${dateStyle}" title="${isOverdue ? '¡Fecha límite vencida!' : 'Próxima fecha'}">
                     📅 ${task.due_date} ${isOverdue ? '⚠️' : ''}
@@ -1421,7 +1464,7 @@ function renderGroupTasks(tasks) {
         }
 
         let assigneeElementMarkup = '';
-        if (isAdmin) {
+        if (canManage) {
             assigneeElementMarkup = `
                 <select class="change-assignee-select" title="Cambiar destinatario de la tarea" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.2); color: inherit; font-size: 12px; padding: 3px 8px; border-radius: 4px; font-weight: 500; cursor: pointer; font-family: inherit; outline: none;">
                     ${currentGroupMembers.map(m => `
@@ -1482,13 +1525,13 @@ function renderGroupTasks(tasks) {
                     ${task.is_completed ? '✅' : '⬜'}
                 </button>
                 
-                ${isAdmin || canModify ? `
+                ${canModify ? `
                     <button class="btn-icon delete-task-btn" title="Borrar" style="color: inherit;">🗑️</button>
                 ` : ''}
             </div>
         `;
 
-        if (isAdmin) {
+        if (canManage) {
             const assigneeSelect = item.querySelector('.change-assignee-select');
             if (assigneeSelect) {
                 assigneeSelect.addEventListener('change', async (e) => {
@@ -1502,7 +1545,7 @@ function renderGroupTasks(tasks) {
                         if (updateAssigneeErr) throw updateAssigneeErr;
 
                         showToast('Destinatario de la tarea actualizado con éxito', 'success');
-                        loadGroupTasks(); 
+                        loadGroupTasks();
                     } catch (err) {
                         showToast('Error al reasignar destinatario: ' + err.message, 'error');
                     }
@@ -1552,7 +1595,7 @@ if (groupClearFiltersBtn) {
     groupClearFiltersBtn.addEventListener('click', () => {
         if (groupSearchTaskInput) groupSearchTaskInput.value = '';
         if (groupFilterFileSelect) groupFilterFileSelect.value = 'all';
-        
+
         if (groupFilterTagInput) groupFilterTagInput.value = 'all';
         if (groupFilterTagPreviewText) groupFilterTagPreviewText.textContent = '🏷️ Etiquetas (Todas)';
         renderGroupTagDropdowns();
@@ -1578,7 +1621,7 @@ groupTaskForm.addEventListener('submit', async (e) => {
 
     const title = groupTaskTitle.value.trim();
     const description = groupTaskDesc.value.trim();
-    const assignedTo = groupTaskAssignee.value; 
+    const assignedTo = groupTaskAssignee.value;
     const tagId = groupTaskTagInput && groupTaskTagInput.value ? groupTaskTagInput.value : null;
     const todayStr = formatLocalDate(new Date());
 
@@ -1723,7 +1766,7 @@ async function saveEditedGroupTaskFiles(task, finalItems) {
     }
 }
 
-// --- RESTO DE MODALES (CREACIÓN, EDICIÓN Y EXPULSIÓN DE MIEMBROS / ELIMINACIÓN DE GRUPOS) ---
+// --- RESTO DE MODALES (CREACIÓN, EDICIÓN, ROLES Y EXPULSIÓN DE MIEMBROS / ELIMINACIÓN DE GRUPOS) ---
 createGroupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     saveGroupBtn.disabled = true;
@@ -1765,53 +1808,127 @@ editGroupForm.addEventListener('submit', async (e) => {
     } catch (err) { showToast(err.message, 'error'); }
 });
 
-openAddMemberBtn.addEventListener('click', () => { 
-    memberEmailInput.value = ''; 
-    renderCurrentMembersList(); 
-    addMemberModal.classList.remove('hidden'); 
+openAddMemberBtn.addEventListener('click', () => {
+    memberEmailInput.value = '';
+    renderCurrentMembersList();
+    addMemberModal.classList.remove('hidden');
 });
+
+async function toggleMemberRole(targetUserId, newRole) {
+    if (!currentGroup || !hasGroupAdminPrivileges()) {
+        showToast('No tienes permisos para cambiar roles en este grupo', 'error');
+        return;
+    }
+
+    if (targetUserId === currentGroup.admin_id) {
+        showToast('El rol del creador del grupo no puede modificarse', 'error');
+        return;
+    }
+
+    try {
+        const { error } = await supabase
+            .from('group_members')
+            .update({ role: newRole })
+            .eq('group_id', currentGroup.id)
+            .eq('user_id', targetUserId);
+
+        if (error) throw error;
+
+        showToast(
+            newRole === 'admin'
+                ? 'Miembro ascendido a administrador'
+                : 'Administrador bajado a miembro',
+            'success'
+        );
+
+        await loadGroups();
+        await loadGroupMembers(currentGroup);
+        await loadGroupTasks();
+        renderCurrentMembersList();
+    } catch (err) {
+        showToast('Error al actualizar rol: ' + err.message, 'error');
+    }
+}
 
 function renderCurrentMembersList() {
     currentMembersList.innerHTML = '';
-    
+
     currentGroupMembers.forEach(member => {
         const li = document.createElement('li');
-        li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #f9f9f9; font-size: 13px;';
-        
-        const isAdmin = member.id === currentGroup.admin_id;
+        li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid #f9f9f9; font-size: 13px;';
+
+        const isCreator = member.id === currentGroup.admin_id || member.role === 'creator';
+        const isAdminRole = !isCreator && member.role === 'admin';
+
+        const roleBadge = isCreator
+            ? '<span style="color: #b58900; font-weight: 600;" title="Creador del grupo">👑 Creador</span>'
+            : (isAdminRole
+                ? '<span style="color: #007bff; font-weight: 600;" title="Administrador">🛡️ Admin</span>'
+                : '<span style="color: #28a745; font-weight: 600;" title="Miembro">🟢 Miembro</span>');
+
+        let actionsHtml = '';
+        if (!isCreator) {
+            const roleBtnText = isAdminRole ? '⬇️' : '⬆️';
+            const roleBtnTitle = isAdminRole ? 'Bajar a miembro' : 'Ascender a administrador';
+            const roleBtnColor = isAdminRole ? '#6c757d' : '#007bff';
+            const nextRole = isAdminRole ? 'member' : 'admin';
+
+            actionsHtml = `
+                <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                    <button type="button" class="toggle-role-btn" data-id="${member.id}" data-next-role="${nextRole}" style="background: none; border: none; color: ${roleBtnColor}; cursor: pointer; font-size: 16px; padding: 0 4px;" title="${roleBtnTitle}">${roleBtnText}</button>
+                    <button type="button" class="kick-member-btn" data-id="${member.id}" style="background: none; border: none; color: #dc3545; cursor: pointer; font-size: 16px; padding: 0 4px;" title="Expulsar miembro">❌</button>
+                </div>
+            `;
+        }
 
         li.innerHTML = `
-            <span><strong>${member.username}</strong> ${isAdmin ? '<span style="color: gold;" title="Administrador">👑</span>' : `(${member.email})`}</span>
-            ${!isAdmin ? `<button class="kick-member-btn" data-id="${member.id}" style="background: none; border: none; color: #dc3545; cursor: pointer; font-size: 16px;" title="Expulsar miembro">❌</button>` : ''}
+            <span style="overflow: hidden; text-overflow: ellipsis;">
+                <strong>${member.username}</strong> · ${roleBadge}
+            </span>
+            ${actionsHtml}
         `;
-        
+
         currentMembersList.appendChild(li);
+    });
+
+    const roleBtns = currentMembersList.querySelectorAll('.toggle-role-btn');
+    roleBtns.forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const targetId = e.currentTarget.getAttribute('data-id');
+            const nextRole = e.currentTarget.getAttribute('data-next-role');
+            await toggleMemberRole(targetId, nextRole);
+        });
     });
 
     const kickBtns = currentMembersList.querySelectorAll('.kick-member-btn');
     kickBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
-            userIdToKick = e.currentTarget.getAttribute('data-id');
+            const targetId = e.currentTarget.getAttribute('data-id');
+            if (targetId === currentGroup.admin_id) {
+                showToast('No se puede expulsar al creador del grupo', 'error');
+                return;
+            }
+            userIdToKick = targetId;
             kickMemberModal.classList.remove('hidden');
         });
     });
 }
 
 addMemberForm.addEventListener('submit', async (e) => {
-    e.preventDefault(); 
+    e.preventDefault();
     const email = memberEmailInput.value.trim();
     const saveBtn = document.getElementById('save-member-btn');
     saveBtn.disabled = true;
-    
+
     try {
         const { data: targetUser, error: searchErr } = await supabase
             .from('users')
             .select('id')
             .eq('email', email)
             .maybeSingle();
-            
+
         if (searchErr || !targetUser) throw new Error('El usuario con ese correo no está registrado.');
-        if (targetUser.id === currentGroup.admin_id) throw new Error('Ese usuario ya es el administrador.');
+        if (targetUser.id === currentGroup.admin_id) throw new Error('Ese usuario es el creador del grupo.');
 
         const { data: existing } = await supabase
             .from('group_members')
@@ -1819,24 +1936,23 @@ addMemberForm.addEventListener('submit', async (e) => {
             .eq('group_id', currentGroup.id)
             .eq('user_id', targetUser.id)
             .maybeSingle();
-            
+
         if (existing) throw new Error('El usuario ya pertenece a este grupo.');
 
         const { error: insErr } = await supabase
             .from('group_members')
-            .insert([{ group_id: currentGroup.id, user_id: targetUser.id }]);
-            
+            .insert([{ group_id: currentGroup.id, user_id: targetUser.id, role: 'member' }]);
+
         if (insErr) throw insErr;
 
         showToast('¡Usuario añadido al grupo!', 'success');
         memberEmailInput.value = '';
-        
+
         await loadGroupMembers(currentGroup);
         await loadGroupTasks();
-        renderCurrentMembersList(); 
-
-    } catch (err) { 
-        showToast(err.message, 'error'); 
+        renderCurrentMembersList();
+    } catch (err) {
+        showToast(err.message, 'error');
     } finally {
         saveBtn.disabled = false;
     }
@@ -1861,9 +1977,9 @@ confirmDeleteBtn.addEventListener('click', async () => {
             .delete()
             .eq('id', taskToDelete.id);
         if (delErr) throw delErr;
-        
+
         showToast('Tarea eliminada', 'success');
-        loadGroupTasks(); 
+        loadGroupTasks();
     } catch (err) {
         showToast('Error al borrar la tarea: ' + err.message, 'error');
     } finally {
@@ -1915,7 +2031,7 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
         currentGroup = null;
         groupDetailPanel.classList.add('hidden');
         noGroupSelectedPanel.classList.remove('hidden');
-        
+
         if (calendarWrapperCard) {
             calendarWrapperCard.classList.add('hidden');
         }
@@ -1936,6 +2052,13 @@ cancelKickBtn.addEventListener('click', () => {
 
 confirmKickBtn.addEventListener('click', async () => {
     if (!userIdToKick || !currentGroup) return;
+
+    if (userIdToKick === currentGroup.admin_id) {
+        showToast('No se puede expulsar al creador del grupo', 'error');
+        kickMemberModal.classList.add('hidden');
+        userIdToKick = null;
+        return;
+    }
 
     confirmKickBtn.disabled = true;
     confirmKickBtn.textContent = 'Expulsando...';
