@@ -1001,6 +1001,13 @@ async function checkAuthAndLoadProfile() {
         window.location.href = 'index.html';
         return null;
     }
+
+    if (!session.user?.email_confirmed_at) {
+        await supabase.auth.signOut();
+        window.location.href = 'index.html';
+        return null;
+    }
+
     currentUserId = session.user.id;
 
     const { data: userData } = await supabase.from('users').select('username, profile_picture_url').eq('id', currentUserId).single();

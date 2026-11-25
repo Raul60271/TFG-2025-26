@@ -47,6 +47,12 @@ async function loadProfileData() {
         return;
     }
 
+    if (!session.user?.email_confirmed_at) {
+        await supabase.auth.signOut();
+        window.location.href = 'index.html';
+        return;
+    }
+
     currentUserId = session.user.id;
     displayEmail.textContent = session.user.email;
 

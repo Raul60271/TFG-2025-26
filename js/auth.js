@@ -74,6 +74,11 @@ registerForm.addEventListener('submit', async (e) => {
 
             if (dbError) throw dbError;
 
+            // Por seguridad, si Supabase devolviera sesión antes de verificar, la cerramos
+            if (authData.session) {
+                await supabase.auth.signOut();
+            }
+
             // Mensaje de éxito pulido
             showToast('¡Cuenta creada! Revisa tu bandeja de entrada y verifica tu correo para poder entrar.', 'success');
             
@@ -118,7 +123,14 @@ loginForm.addEventListener('submit', async (e) => {
 
         if (error) throw error;
 
-        // Si todo va bien, redirige al gestor de tareas
+        // Bloquea el acceso si el correo electrónico aún no está verificado
+        if (!data.user?.email_confirmed_at) {
+            await supabase.auth.signOut();
+            showToast('Falta verificar tu cuenta. Busca el enlace de activación en tu correo electrónico.', 'error');
+            return;
+        }
+
+        // Si todo va bien y está verificado, redirige al gestor de tareas
         window.location.href = 'dashboard.html';
         
     } catch (error) {

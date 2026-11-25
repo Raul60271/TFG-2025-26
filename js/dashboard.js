@@ -853,6 +853,12 @@ async function checkAuthAndLoadProfile() {
         return null;
     }
 
+    if (!session.user?.email_confirmed_at) {
+        await supabase.auth.signOut();
+        window.location.href = 'index.html';
+        return null;
+    }
+
     currentUserId = session.user.id;
     const { data: userData, error: userError } = await supabase
         .from('users')
