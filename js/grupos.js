@@ -1,4 +1,11 @@
 import { supabase } from './supabase.js';
+import {
+    notifyGroupAdded,
+    notifyGroupTaskAssigned,
+    deleteNotificationsForUserInGroup,
+    deleteNotificationsForGroup,
+    refreshNotificationsPanel
+} from './notifications.js';
 
 // --- MAPEO DE COLORES PREESTABLECIDOS ---
 const TASK_COLORS = {
@@ -232,6 +239,7 @@ const selectedGroupDesc = document.getElementById('selected-group-desc');
 const adminGroupActions = document.getElementById('admin-group-actions');
 
 // Referencias del Calendario Lateral de Grupos
+const groupCalendarSlot = document.getElementById('group-calendar-slot');
 const calendarWrapperCard = document.getElementById('calendar-wrapper-card');
 const calendarGrid = document.getElementById('calendar-grid');
 const calendarMonthName = document.getElementById('calendar-month-name');
@@ -351,10 +359,19 @@ const currentMembersList = document.getElementById('current-members-list');
 
 let currentUserId = null;
 let currentGroup = null;
-let currentGroupMembers = []; // { id, username, email, role: 'creator' | 'admin' | 'member' }
+let currentGroupMembers = [];
 let allGroupTasks = [];
 let groupTags = [];
 let adminGroupIds = new Set();
+
+function setGroupCalendarVisible(visible) {
+    if (groupCalendarSlot) {
+        groupCalendarSlot.classList.toggle('hidden', !visible);
+    }
+    if (calendarWrapperCard) {
+        calendarWrapperCard.classList.toggle('hidden', !visible);
+    }
+}
 
 // --- HELPERS DE ROLES Y PERMISOS ---
 function isGroupCreator(group, userId = currentUserId) {
@@ -366,12 +383,6 @@ function hasGroupAdminPrivileges(group = currentGroup, userId = currentUserId) {
     if (group.admin_id === userId) return true;
     const member = currentGroupMembers.find(m => m.id === userId);
     return Boolean(member && member.role === 'admin');
-}
-
-function getRoleLabel(role) {
-    if (role === 'creator') return '👑 Creador';
-    if (role === 'admin') return '🛡️ Administrador';
-    return 'Miembro';
 }
 
 // --- NOTIFICACIONES TOAST ---
@@ -1046,6 +1057,7 @@ async function loadGroups() {
     });
 
     renderGroupsList(allGroups);
+    await refreshNotificationsPanel(currentUserId);
 }
 
 function renderGroupsList(groups) {
@@ -1084,9 +1096,7 @@ async function selectGroup(group) {
     noGroupSelectedPanel.classList.add('hidden');
     groupDetailPanel.classList.remove('hidden');
 
-    if (calendarWrapperCard) {
-        calendarWrapperCard.classList.remove('hidden');
-    }
+    setGroupCalendarVisible(true);
 
     selectedGroupName.textContent = `👥 ${group.name}`;
     selectedGroupDesc.textContent = group.description || 'Sin descripción disponible.';
@@ -1317,6 +1327,7 @@ async function loadGroupTasks() {
     allGroupTasks = await syncRecurringGroupTasksToUpcomingDates(normalizedTasks);
     applyGroupFiltersAndRender();
     renderGroupCalendar();
+    await refreshNotificationsPanel(currentUserId);
 }
 
 // Lógica de filtrado en cliente para grupos
@@ -1387,7 +1398,7 @@ async function toggleGroupTaskCompletion(task) {
             showToast('Error al reprogramar la tarea periódica', 'error');
         } else {
             showToast(`🔁 Tarea completada. Próxima fecha: ${nextDate}`, 'success');
-            loadGroupTasks();
+            await loadGroupTasks();
         }
         return;
     }
@@ -1400,7 +1411,7 @@ async function toggleGroupTaskCompletion(task) {
     if (updErr) {
         showToast('No se pudo cambiar el estado', 'error');
     } else {
-        loadGroupTasks();
+        await loadGroupTasks();
     }
 }
 
@@ -1544,8 +1555,18 @@ function renderGroupTasks(tasks) {
 
                         if (updateAssigneeErr) throw updateAssigneeErr;
 
+                        if (newAssigneeId !== task.assigned_to && newAssigneeId !== currentUserId) {
+                            await notifyGroupTaskAssigned(
+                                newAssigneeId,
+                                currentGroup.id,
+                                task.id,
+                                currentGroup.name,
+                                task.title
+                            );
+                        }
+
                         showToast('Destinatario de la tarea actualizado con éxito', 'success');
-                        loadGroupTasks();
+                        await loadGroupTasks();
                     } catch (err) {
                         showToast('Error al reasignar destinatario: ' + err.message, 'error');
                     }
@@ -1685,6 +1706,10 @@ groupTaskForm.addEventListener('submit', async (e) => {
             }
         }
 
+        if (createdTask && assignedTo && assignedTo !== currentUserId) {
+            await notifyGroupTaskAssigned(assignedTo, currentGroup.id, createdTask.id, currentGroup.name, title);
+        }
+
         showToast('¡Tarea añadida con éxito!', 'success');
         groupTaskForm.reset();
         resetGroupPendingFiles();
@@ -1779,7 +1804,7 @@ createGroupForm.addEventListener('submit', async (e) => {
         if (error) throw error;
         showToast('¡Grupo creado con éxito!', 'success');
         createGroupModal.classList.add('hidden');
-        loadGroups();
+        await loadGroups();
     } catch (err) { showToast(err.message, 'error'); }
     finally { saveGroupBtn.disabled = false; }
 });
@@ -1804,7 +1829,7 @@ editGroupForm.addEventListener('submit', async (e) => {
         selectedGroupName.textContent = `👥 ${currentGroup.name}`;
         selectedGroupDesc.textContent = currentGroup.description || 'Sin descripción...';
         editGroupModal.classList.add('hidden');
-        loadGroups();
+        await loadGroups();
     } catch (err) { showToast(err.message, 'error'); }
 });
 
@@ -1945,6 +1970,8 @@ addMemberForm.addEventListener('submit', async (e) => {
 
         if (insErr) throw insErr;
 
+        await notifyGroupAdded(targetUser.id, currentGroup.id, currentGroup.name);
+
         showToast('¡Usuario añadido al grupo!', 'success');
         memberEmailInput.value = '';
 
@@ -1979,7 +2006,7 @@ confirmDeleteBtn.addEventListener('click', async () => {
         if (delErr) throw delErr;
 
         showToast('Tarea eliminada', 'success');
-        loadGroupTasks();
+        await loadGroupTasks();
     } catch (err) {
         showToast('Error al borrar la tarea: ' + err.message, 'error');
     } finally {
@@ -2003,6 +2030,8 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
     confirmDeleteGroupBtn.textContent = 'Eliminando...';
 
     try {
+        const groupIdToDelete = currentGroup.id;
+
         const allFilesInGroup = allGroupTasks.flatMap(t => (Array.isArray(t.files) ? t.files : []));
         if (allFilesInGroup.length > 0) {
             await deleteGroupFilesFromStorage(allFilesInGroup);
@@ -2013,16 +2042,18 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
             await supabase.from('group_task_files').delete().in('task_id', taskIds);
         }
 
-        const { error: taskErr } = await supabase.from('group_tasks').delete().eq('group_id', currentGroup.id);
+        await deleteNotificationsForGroup(groupIdToDelete);
+
+        const { error: taskErr } = await supabase.from('group_tasks').delete().eq('group_id', groupIdToDelete);
         if (taskErr) throw taskErr;
 
-        const { error: tagsErr } = await supabase.from('tags').delete().eq('group_id', currentGroup.id);
+        const { error: tagsErr } = await supabase.from('tags').delete().eq('group_id', groupIdToDelete);
         if (tagsErr) throw tagsErr;
 
-        const { error: membersErr } = await supabase.from('group_members').delete().eq('group_id', currentGroup.id);
+        const { error: membersErr } = await supabase.from('group_members').delete().eq('group_id', groupIdToDelete);
         if (membersErr) throw membersErr;
 
-        const { error: groupErr } = await supabase.from('groups').delete().eq('id', currentGroup.id);
+        const { error: groupErr } = await supabase.from('groups').delete().eq('id', groupIdToDelete);
         if (groupErr) throw groupErr;
 
         showToast('Grupo y todos sus datos eliminados por completo', 'success');
@@ -2032,11 +2063,9 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
         groupDetailPanel.classList.add('hidden');
         noGroupSelectedPanel.classList.remove('hidden');
 
-        if (calendarWrapperCard) {
-            calendarWrapperCard.classList.add('hidden');
-        }
+        setGroupCalendarVisible(false);
 
-        loadGroups();
+        await loadGroups();
     } catch (err) {
         showToast('Error al eliminar el grupo: ' + err.message, 'error');
     } finally {
@@ -2072,6 +2101,8 @@ confirmKickBtn.addEventListener('click', async () => {
 
         if (kickErr) throw kickErr;
 
+        await deleteNotificationsForUserInGroup(userIdToKick, currentGroup.id);
+
         showToast('Miembro expulsado del grupo', 'success');
         kickMemberModal.classList.add('hidden');
 
@@ -2093,5 +2124,5 @@ window.addEventListener('DOMContentLoaded', async () => {
     initGroupRecurrenceModal();
     initGroupNewTagColorGrid();
     const uId = await checkAuthAndLoadProfile();
-    if (uId) loadGroups();
+    if (uId) await loadGroups();
 });

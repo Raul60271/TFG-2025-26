@@ -35,24 +35,38 @@
     <!-- LAYOUT DE 3 COLUMNAS PARA GRUPOS -->
     <main class="dashboard-grid-layout">
         
-        <!-- COLUMNA 1: Calendario Lateral (Oculto por defecto hasta que se seleccione un grupo) -->
+        <!-- COLUMNA 1: Calendario Lateral y Notificaciones -->
         <aside id="sidebar-calendar-area">
-            <div id="calendar-wrapper-card" class="calendar-card hidden">
-                <div class="calendar-header">
-                    <button id="prev-month-btn" class="calendar-nav-btn" title="Mes anterior">‹</button>
-                    
-                    <div style="display: flex; align-items: center; gap: 4px;">
-                        <span id="calendar-month-name" style="font-size: 1.1em; font-weight: bold; color: #333;">Cargando...</span>
-                        <input type="number" id="calendar-year-input" min="2000" max="2100" title="Haz clic para escribir o cambiar el año">
-                    </div>
+            <div class="sidebar-sticky-stack">
+                <div id="group-calendar-slot" class="hidden">
+                    <div id="calendar-wrapper-card" class="calendar-card">
+                        <div class="calendar-header">
+                            <button id="prev-month-btn" class="calendar-nav-btn" title="Mes anterior">‹</button>
+                            
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <span id="calendar-month-name" style="font-size: 1.1em; font-weight: bold; color: #333;">Cargando...</span>
+                                <input type="number" id="calendar-year-input" min="2000" max="2100" title="Haz clic para escribir o cambiar el año">
+                            </div>
 
-                    <button id="next-month-btn" class="calendar-nav-btn" title="Mes siguiente">›</button>
+                            <button id="next-month-btn" class="calendar-nav-btn" title="Mes siguiente">›</button>
+                        </div>
+                        <div class="calendar-weekdays">
+                            <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
+                        </div>
+                        <div id="calendar-grid" class="calendar-grid">
+                            <!-- Días renderizados dinámicamente -->
+                        </div>
+                    </div>
                 </div>
-                <div class="calendar-weekdays">
-                    <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
-                </div>
-                <div id="calendar-grid" class="calendar-grid">
-                    <!-- Días renderizados dinámicamente -->
+
+                <div id="notifications-wrapper-card" class="calendar-card">
+                    <div class="notifications-header">
+                        <h3>Notificaciones</h3>
+                        <span id="notifications-count-badge" class="notifications-badge">0</span>
+                    </div>
+                    <ul id="notifications-list" class="notifications-list">
+                        <li class="empty-state" style="font-size: 13px; color: #888; text-align: center; padding: 12px 0;">No tienes notificaciones.</li>
+                    </ul>
                 </div>
             </div>
         </aside>

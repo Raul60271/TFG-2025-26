@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js';
+import { refreshNotificationsPanel } from './notifications.js';
 
 // --- MAPEO DE COLORES PREESTABLECIDOS ---
 const TASK_COLORS = {
@@ -239,13 +240,9 @@ const cancelFilesModalBtn = document.getElementById('cancel-files-modal-btn');
 const acceptFilesModalBtn = document.getElementById('accept-files-modal-btn');
 const triggerSelectFileBtn = document.getElementById('trigger-select-file-btn');
 
-// Estado de archivos para creación vs. edición de tarea existente
-// Cada elemento en tempPendingFiles es:
-// - { kind: 'new', file: File, name: string }
-// - { kind: 'existing', record: { id_file, task_id, name, url, path }, name: string }
-let confirmedPendingFiles = []; // File[] para creación de nueva tarea
+let confirmedPendingFiles = [];
 let tempPendingFiles = [];
-let editingTaskForFiles = null; // null = modo creación, objeto task = modo edición de tarea existente
+let editingTaskForFiles = null;
 
 // Referencias de Periodicidad (Botón y Modal)
 const openRecurrenceModalBtn = document.getElementById('open-recurrence-modal-btn');
@@ -311,7 +308,7 @@ let currentUserId = null;
 let allTasks = [];
 let userTags = [];
 
-// --- SISTEMA DE NOTIFICACIONES ---
+// --- SISTEMA DE NOTIFICACIONES TOAST ---
 function showToast(message, type) {
     toastNotification.textContent = message;
     toastNotification.className = `toast show ${type}`;
@@ -967,6 +964,7 @@ async function loadTasks(userId) {
     allTasks = await syncRecurringTasksToUpcomingDates(normalizedTasks);
     applyFiltersAndRender();
     renderCalendar();
+    await refreshNotificationsPanel(userId);
 }
 
 // --- 6. MINI-CALENDARIO ---
@@ -1425,7 +1423,7 @@ async function toggleTaskCompletion(task) {
         } else {
             showToast(`🔁 Tarea completada. Próxima fecha: ${nextDate}`, 'success');
             const { data: { session } } = await supabase.auth.getSession();
-            loadTasks(session.user.id);
+            await loadTasks(session.user.id);
         }
         return;
     }
@@ -1437,7 +1435,7 @@ async function toggleTaskCompletion(task) {
 
     if (!error) {
         const { data: { session } } = await supabase.auth.getSession();
-        loadTasks(session.user.id);
+        await loadTasks(session.user.id);
     }
 }
 
@@ -1470,7 +1468,7 @@ confirmDeleteBtn.addEventListener('click', async () => {
     } else {
         showToast('Tarea borrada', 'success');
         const { data: { session } } = await supabase.auth.getSession();
-        loadTasks(session.user.id);
+        await loadTasks(session.user.id);
     }
 
     deleteModal.classList.add('hidden');
