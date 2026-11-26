@@ -23,6 +23,18 @@ recoveryForm.addEventListener('submit', async (e) => {
     recoveryBtn.textContent = 'Enviando...';
 
     try {
+        // Comprueba si el correo existe y está verificado en Supabase Auth
+        const { data: isVerified, error: verifyError } = await supabase.rpc('is_email_verified', {
+            target_email: email
+        });
+
+        if (verifyError) throw verifyError;
+
+        if (!isVerified) {
+            showToast('Falta verificar tu cuenta. Busca el enlace de activación en tu correo electrónico antes de cambiar la contraseña.', 'error');
+            return;
+        }
+
         // Solicitamos a Supabase el envío del correo de recuperación
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
             redirectTo: 'https://gestordetareastfgraulsanromanduran.netlify.app/actualizar-password.html'
